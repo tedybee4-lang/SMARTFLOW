@@ -1,27 +1,26 @@
 # Implementation Status (live)
 
-Updated: 2026-10-18. Vercel authenticated as malariachrome-7756. GitHub/Supabase CLIs installed; `gh auth login` still required (run `gh auth login` interactively — never paste tokens in chat).
+Updated: 2026-10-18 00:50 EAT. Pushed to https://github.com/tedybee4-lang/SMARTFLOW.git (commit 957edc7, branch main, working tree clean).
+
+## Verified green
+- Tests: 8/8 passing (Kenya phones, KES format, sale math, subscription tiers)
+- Typecheck: passing. Lint: 0 errors. Production build: passing.
 
 ## Completed
-- Next.js 16 + TS + Tailwind scaffold in `smartflow/`
-- Deps: @supabase/ssr, @supabase/supabase-js, zod, date-fns, vitest
-- Docs: architecture, checklist, status, kenya notes, payhero notes
-- `.env.example` (names only, no secrets)
-- Core lib: supabase clients, kenya phone/currency, money math + tests, auth helpers
-- DB migration 0001: businesses, memberships, branches, platform_admins, RLS helpers
-- App shell: layout, homepage, /sign-in, /onboarding, /dashboard, /platform-admin placeholders wired to real auth
+- Next.js 16 + TS + Tailwind in `smartflow/`
+- Supabase clients (browser/server split), Kenya helpers, money math + tests, auth guards
+- Migrations 0001-0004b: tenancy, catalogue/inventory, orders/payments, billing, messaging, storefront, audit — all with RLS
+- Pages: home, /sign-in, /onboarding, /dashboard (real queries), /platform-admin (guarded)
+- API: /api/onboarding (slug check, membership, branch, storefront, audit)
+- PayHero / TOPSPEED / WhatsApp server-only skeletons (docs-first, no invented endpoints)
 - CI: GitHub Actions (lint, typecheck, test, build)
 
 ## In progress
-- Full domain migrations (products/orders/payments/subscriptions/audit)
-- Product/inventory/POS UI against real queries
+- Fix README overwrite artifact (one-line truncation), then commit + push
+- Phase 3: products/POS/orders/expenses UI + stock ledger writes
+- Phase 4: storefront + customer portal
 
-## Blockers / needs user
-- `gh auth login` (interactive browser flow) before push to https://github.com/tedybee4-lang/SMARTFLOW.git
-- Supabase project creation (`npx supabase projects create`) after `npx supabase login`
-- PayHero / TOPSPEED / WhatsApp creds → via official dashboards into Vercel env vars later
-
-## Next steps
-1. User runs `gh auth login`, then agent pushes + creates repo if needed
-2. Apply migrations to new Supabase project
-3. Continue Phase 3 UI + tests
+## Needs user (nothing else blocked)
+- Supabase: `npx supabase login` then create project `smartflow` (or link existing); then apply migrations
+- Vercel: link project to repo, set env vars (Supabase URL/anon key server-side secrets)
+- PayHero / TOPSPEED / WhatsApp creds later via official dashboards
