@@ -1,10 +1,19 @@
 # Implementation Status (live)
 
-Updated: 2026-10-18 00:50 EAT. Pushed to https://github.com/tedybee4-lang/SMARTFLOW.git (commit 957edc7, branch main, working tree clean).
+Updated: 2026-10-18 01:20 EAT. Supabase project SMARTFLOW (ref wmszgwrqwlhrfolkwwsn, West EU Ireland) linked; all 5 migrations applied and verified on remote. Local env wired (.env.local, git-ignored).
 
-## Verified green
-- Tests: 8/8 passing (Kenya phones, KES format, sale math, subscription tiers)
-- Typecheck: passing. Lint: 0 errors. Production build: passing.
+## Verified green (this session)
+- Tests: 15/15 passing (core 8 + security/lifecycle 7)
+- Typecheck: passing. Lint: 0 errors. Production build: passing (19 routes).
+
+## Completed this session
+- Migration filenames → timestamp format; RLS fix (subscription_plans requires authenticated role)
+- Verified remote: 40 RLS policies, 4 subscription tiers seeded (Starter 0-50k → KSh 4,000 intact)
+- Cart page (/cart?shop=slug) + public guest checkout API (server-side pricing, phone validation)
+- Order lifecycle API (7 transitions, guarded single stock restore, audit)
+- Subscription invoice API (qualifying-sales calc incl. cash, transparent tier match, no silent charges)
+- PayHero callback receiver (token check, amount validation, idempotent, dual-purpose order/subscription)
+- 7 new security/lifecycle tests
 
 ## Completed
 - Next.js 16 + TS + Tailwind in `smartflow/`

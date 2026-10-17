@@ -78,7 +78,7 @@ alter table public.subscription_invoices enable row level security;
 alter table public.business_payment_channels enable row level security;
 alter table public.payment_attempts enable row level security;
 
-create policy "anyone read active plans" on public.subscription_plans for select using (is_active = true);
+create policy "authenticated read active plans" on public.subscription_plans for select using (is_active = true and auth.role() = 'authenticated');
 create policy "platform manage plans" on public.subscription_plans for all using (public.is_platform_admin());
 create policy "members read subscription" on public.subscriptions for select using (public.is_member(business_id));
 create policy "platform manage subscriptions" on public.subscriptions for all using (public.is_platform_admin());
