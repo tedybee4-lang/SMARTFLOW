@@ -3,6 +3,7 @@ import { requireMembership } from "@/lib/auth";
 import { supabaseServer, supabaseServiceRole } from "@/lib/supabase-server";
 import { CheckoutSchema } from "@/lib/validation";
 import { orderTotals } from "@/lib/money";
+import { rateLimited } from "@/lib/rate-limit";
 
 /**
  * POST /api/sales/checkout — record a sale with ledger-safe stock deduction.
@@ -10,6 +11,8 @@ import { orderTotals } from "@/lib/money";
  * and leaves order payment_pending (callback confirms later).
  */
 export async function POST(req: Request) {
+  const rl = rateLimited(req, 30);
+  if (rl) return rl;
   const body = await req.json().catch(() => null);
   const parsed = CheckoutSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid sale input" }, { status: 400 });
@@ -44,10 +47,23 @@ export async function POST(req: Request) {
   }).select("id").single();
   if (orderErr || !order) return NextResponse.json({ error: "Could not create order" }, { status: 500 });
 
-  // 2. Order items (with product name snapshots)
+  // 2. Order items — prices re-verified from server catalogue (never trust client prices)
   const sb = await supabaseServer();
-  const { data: products } = await sb.from("products").select("id,name").eq("business_id", input.business_id);
-  const nameById = new Map((products ?? []).map((p: { id: string; name: string }) => [p.id, p.name]));
+  const { data: products } = await sb.from("products")
+    .select("id,name,selling_price,tax_rate").eq("business_id", input.business_id)
+    .in("id", input.items.map((i) => i.product_id));
+  const catalog = new Map(((products ?? []) as { id: string; name: string; selling_price: number; tax_rate: number }[]).map((p) => [p.id, p]));
+  if (catalog.size !== input.items.length) {
+    return NextResponse.json({ error: "Some items are unavailable" }, { status: 400 });
+  }
+  // Client unit prices must match catalogue within 0.01 (prevents price tampering)
+  for (const i of input.items) {
+    const p = catalog.get(i.product_id)!;
+    if (Math.abs(Number(i.unit_price) - Number(p.selling_price)) > 0.01) {
+      return NextResponse.json({ error: "Price mismatch — please refresh products and retry" }, { status: 409 });
+    }
+  }
+  const nameById = new Map([...catalog.values()].map((p) => [p.id, p.name]));
   await srv.from("order_items").insert(
     input.items.map((i) => ({
       order_id: order.id,

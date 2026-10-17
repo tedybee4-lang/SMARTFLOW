@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseServer, supabaseServiceRole } from "@/lib/supabase-server";
 import { normalizeKEPhone } from "@/lib/kenya";
+import { rateLimited } from "@/lib/rate-limit";
 
 const Schema = z.object({
   name: z.string().min(2).max(120),
@@ -12,6 +13,8 @@ const Schema = z.object({
 });
 
 export async function POST(req: Request) {
+  const rl = rateLimited(req, 10);
+  if (rl) return rl;
   const body = await req.json().catch(() => null);
   const parsed = Schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

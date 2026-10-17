@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseServiceRole } from "@/lib/supabase-server";
 import { normalizeKEPhone } from "@/lib/kenya";
+import { rateLimited } from "@/lib/rate-limit";
 
 const Schema = z.object({
   business_slug: z.string().min(1),
@@ -14,6 +15,8 @@ const Schema = z.object({
 
 /** Public guest checkout — no login required. Creates customer + placed order. Payment confirmed in shop. */
 export async function POST(req: Request) {
+  const rl = rateLimited(req, 20);
+  if (rl) return rl;
   const parsed = Schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid order" }, { status: 400 });
   const input = parsed.data;
