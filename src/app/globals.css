@@ -1,6 +1,134 @@
 @import "tailwindcss";
 
-body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+/* SMARTFLOW brand theme — navy / blue / violet */
+@theme {
+  --color-navy-950: #05091a;
+  --color-navy-900: #0a1633;
+  --color-navy-800: #10204a;
+  --color-navy-700: #1a2f66;
+  --color-navy-600: #274186;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-slate-50 font-sans text-slate-900 antialiased;
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-blue-600) 25%, transparent);
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-600;
+  }
+}
+
+@layer components {
+  /* Buttons — shared base inlined into each (v4 cannot @apply custom classes) */
+  .btn,
+  .btn-primary,
+  .btn-navy,
+  .btn-outline,
+  .btn-ghost,
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800;
+  }
+  .btn-navy {
+    @apply bg-navy-900 text-white hover:bg-navy-800 active:bg-navy-700;
+  }
+  .btn-outline {
+    @apply border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+  }
+  .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+  .btn-danger {
+    @apply bg-rose-600 text-white hover:bg-rose-700;
+  }
+
+  /* Forms */
+  .label {
+    @apply block text-sm font-medium text-slate-700;
+  }
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25 disabled:bg-slate-50 disabled:text-slate-500;
+  }
+
+  /* Surfaces */
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+  .card-pad {
+    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+  }
+
+  /* Tables */
+  .table-base {
+    @apply w-full text-left text-sm;
+  }
+  .table-base thead tr {
+    @apply border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500;
+  }
+  .table-base th {
+    @apply px-4 py-3 font-semibold;
+  }
+  .table-base td {
+    @apply px-4 py-3;
+  }
+  .table-base tbody tr {
+    @apply border-b border-slate-100 last:border-0 hover:bg-slate-50;
+  }
+  .num {
+    @apply tabular-nums;
+  }
+
+  /* Badges — shared base inlined into each variant */
+  .badge,
+  .badge-ok,
+  .badge-warn,
+  .badge-err,
+  .badge-info,
+  .badge-neutral {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium;
+  }
+  .badge-ok {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+  .badge-warn {
+    @apply border-amber-200 bg-amber-50 text-amber-700;
+  }
+  .badge-err {
+    @apply border-rose-200 bg-rose-50 text-rose-700;
+  }
+  .badge-info {
+    @apply border-blue-200 bg-blue-50 text-blue-700;
+  }
+  .badge-neutral {
+    @apply border-slate-200 bg-slate-100 text-slate-600;
+  }
+
+  /* Page scaffolding */
+  .page-title {
+    @apply text-2xl font-bold tracking-tight text-navy-900;
+  }
+  .page-sub {
+    @apply mt-1 text-sm text-slate-500;
+  }
+  .hint {
+    @apply text-sm text-slate-600;
+  }
+  .error-text {
+    @apply text-sm font-medium text-rose-600;
+  }
+  .ok-text {
+    @apply text-sm font-medium text-emerald-700;
+  }
+}
+
 

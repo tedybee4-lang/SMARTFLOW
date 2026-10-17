@@ -1,13 +1,22 @@
 # Implementation Status (live)
 
-Updated: 2026-10-18 01:50 EAT. Supabase (ref wmszgwrqwlhrfolkwwsn) + Vercel project linked, production publicly serving at https://smartflow-malariachrome-7756s-projects.vercel.app. All migrations applied remotely (40 RLS policies, 4 subscription tiers seeded).
+Updated: 2026-10-18 02:45 EAT. Supabase (ref wmszgwrqwlhrfolkwwsn) + Vercel project linked, production publicly serving at https://smartflow-malariachrome-7756s-projects.vercel.app. All migrations applied remotely (40 RLS policies, 4 subscription tiers seeded).
 
 ## Verified green (this session)
 - Tests: 15/15 passing (core 8 + security/lifecycle 7)
-- Typecheck: passing. Lint: 0 errors. Production build: 18 routes, passing.
+- Typecheck: passing. Lint: 0 errors. Production build: 21 routes, passing.
+- Local prod-server probes: `/`, `/sign-in`, `/onboarding`, `/track`, `/cart?shop=test`, `/s/unknown`, `/dashboard`, `/pos`, `/products`, `/orders`, `/expenses`, `/subscriptions`, `/platform-admin` all render 200 with a stylesheet `<link>`; served CSS (38 KB) contains the design tokens and component classes.
 - Live probes: `/`, `/sign-in`, `/onboarding`, `/dashboard` (auth-gated), `/platform-admin` (guarded) all render correctly; `/s/[slug]` graceful 404 on empty DB.
 
 ## Completed this session
+- **CSS root-cause fix + full UI redesign**:
+  - **Root cause** — production served unstyled HTML because Tailwind v4 was installed but never wired into the build. `globals.css` had the correct `@import "tailwindcss"` but no PostCSS config and no Turbopack loader existed, so zero utilities were ever generated (built CSS contained only the raw `body{font-family}` rule, ~400 bytes).
+  - **Fix** — `next.config.ts` now wires `@tailwindcss/turbopack` via `turbopack.rules` (`"*\.css": [{ loader: "@tailwindcss/turbopack" }]`), per Next.js 16 bundled docs. Built CSS went 400 B → 38 KB with real utilities.
+  - **Tailwind v4 constraint** — v4 forbids `@apply`-ing custom component classes; `globals.css` therefore inlines the shared base into grouped selectors (`.btn, .btn-primary, …`).
+  - **Design system** — `globals.css` `@theme`: navy-600…950 tokens, font stack, base focus/selection states; component classes: `.btn-primary/navy/outline/ghost/danger`, `.input`, `.label`, `.card`, `.card-pad`, `.table-base`, `.badge-*`, `.page-title`, `.page-sub`, `.num`. Navy/blue/violet brand; green only as semantic "paid/ok" badge, never a primary color.
+  - **Route groups** — `(marketing)/` (home, sign-in, onboarding, track, cart, s/[slug]; public header + footer) and `(app)/` (dashboard, pos, products, orders, expenses, subscriptions, platform-admin; sidebar + header shell with active-link highlighting, mobile drawer, admin-gated Platform section via real `isPlatformAdmin()`).
+  - **Page redesigns** — marketing hero landing with features/steps/CTA; split-panel sign-in; true 3-step onboarding wizard (progress bar, per-step validation, review step; same `/api/onboarding` contract); POS two-pane (product grid + sticky cart with qty controls, cash/credit); products table + inline add form; orders with status/payment badges; expenses list + quick-add; new `/subscriptions` page (real subscription, plans, invoices via RLS-scoped reads); storefront hero + product cards with CTA to `/cart`; cart with steppers/fulfilment toggle; track with labelled progress bars and Paid/Balance-due badge; platform-admin stat cards + tables. All business logic, API contracts and authz preserved verbatim.
+  - Verified locally with `next start`: all routes 200, every HTML links the stylesheet, fetched CSS contains `--color-navy-900` and `.btn-primary`.
 - Security hardening pass:
   - **Price-tampering fix** — `/api/sales/checkout` now re-verifies every unit price against the server catalogue (409 on mismatch). Client prices are never trusted.
   - Rate limiting (`src/lib/rate-limit.ts`, in-memory per-IP) on checkout (30/min), storefront checkout (20/min), onboarding (10/min).
