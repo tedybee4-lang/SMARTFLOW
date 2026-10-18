@@ -54,6 +54,7 @@ export const config = {
     "/reports/:path*",
     "/staff/:path*",
     "/storefront-settings/:path*",
+    "/settings/:path*",
     "/subscriptions/:path*",
     "/onboarding",
     "/platform-admin/:path*",

@@ -54,7 +54,7 @@ export function canRemoveMember(actorRole: string, targetRole: string, isSelf: b
 
 /** Route families — used to reason about (and test) which audience a route serves. */
 export const ROUTE_FAMILIES = {
-  business: ["/dashboard", "/pos", "/products", "/orders", "/customers", "/expenses", "/reports", "/staff", "/storefront-settings", "/subscriptions", "/onboarding"],
+  business: ["/dashboard", "/pos", "/products", "/orders", "/customers", "/expenses", "/reports", "/staff", "/storefront-settings", "/subscriptions", "/onboarding", "/settings"],
   platformAdmin: ["/platform-admin"],
   customer: ["/track", "/cart", "/customer", "/s"],
 } as const;

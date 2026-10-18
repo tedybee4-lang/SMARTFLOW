@@ -112,6 +112,19 @@
 
 ---
 
+## 4A. Stage 4 — BUSINESS TILL & PAYBILL SETTINGS (COMPLETED this session; migration pending remote apply)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 4A.1 | Migration `20261018000002_till_paybill.sql` — adds `till_number`, `paybill_number`, `payment_method` to `business_payment_channels`; makes `channel_id` nullable (Till-only businesses); `chk_payment_channel_target` check enforces the chosen method's target | ✅ Written | `supabase/migrations/20261018000002_till_paybill.sql` |
+| 4A.2 | `PaymentChannelSchema` — zod validation (method enum + 4–10 digit numbers / channel id) | ✅ Done | `src/lib/validation.ts` |
+| 4A.3 | `GET/PUT /api/business/payment-channel` — member read, owner/manager write, stale targets nulled, upsert `onConflict: business_id`, generic 500, rate limit | ✅ Done | `src/app/api/business/payment-channel/route.ts` |
+| 4A.4 | `/settings` page — Till / PayBill / PayHero radio form with real GET load + PUT save | ✅ Done | `src/app/(app)/settings/page.tsx` |
+| 4A.5 | `/settings` registered in route families + middleware matcher + sidebar "Settings" link | ✅ Done | `src/lib/access.ts`, `src/middleware.ts`, `src/components/app-sidebar.tsx` |
+| 4A.6 | Tests: 15 new (`payment-channel.test.ts` — schema, auth, stale-target clearing, error sanitisation) | ✅ Verified | `npm test` → **80/80 across 9 files** |
+| 4A.7 | Full checks: typecheck clean, lint 0 errors, build clean (middleware + /settings route registered) | ✅ Verified | `npm run typecheck && npm run lint && npm run build` |
+| 4A.8 | Migration pending remote apply — same Supabase-CLI-credentials blocker as `0007` | ⏳ Pending | Apply 0007+0008 together via `supabase db push` |
+
 ## 4. Remaining Phases
 
 | Phase | Scope | Dependency |

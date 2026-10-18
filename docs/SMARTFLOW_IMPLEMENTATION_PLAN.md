@@ -10,8 +10,8 @@
 |-------|-------|--------|
 | 1 | CI repair (tests, typecheck, build, workflow paths) | DONE - `8be30fd` + `dda8c90`; CI green (run #12) |
 | 2 | Auth and onboarding verification + server-side middleware | DONE - `src/middleware.ts`, `isProtectedRoute`, register/sign-in/callback/onboarding verified |
-| 3 | Automatic 7-day trials + subscription enforcement | CODE DONE - migration `20261018000001` pending remote apply (no Supabase CLI creds in env) |
-| 4 | Business Till and PayBill settings | TODO - next |
+| 3 | Automatic 7-day trials + subscription enforcement | DONE - CI green run #13; migrations 0007/0008 pending remote apply |
+| 4 | Business Till and PayBill settings | DONE - migration 0008, GET/PUT /api/business/payment-channel, /settings page, 15 tests |
 | 5 | Unique business URL slugs + public storefronts | TODO |
 | 6 | Professional landing-page redesign | TODO |
 | 7 | Dashboard analytics with graphs | TODO |
@@ -34,3 +34,4 @@
 - Every stage: implement, test, typecheck/lint/build, update checklist with evidence, commit, push, verify CI.
 - Never block the whole mission on external credentials; document blockers and continue.
 - No force-pushes; commits land on `main` via normal pushes.
+

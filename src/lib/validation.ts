@@ -58,3 +58,31 @@ export const CheckoutSchema = z.object({
 });
 
 export type CheckoutInput = z.infer<typeof CheckoutSchema>;
+
+/**
+ * Business Till / PayBill / PayHero channel settings (PUT /api/business/payment-channel).
+ * The active payment_method must have its matching target populated — the DB
+ * constraint `chk_payment_channel_target` mirrors this rule.
+ */
+export const PaymentChannelSchema = z
+  .object({
+    business_id: z.string().uuid(),
+    payment_method: z.enum(["till", "paybill", "payhero"]),
+    till_number: z.string().trim().max(20).default(""),
+    paybill_number: z.string().trim().max(20).default(""),
+    channel_id: z.string().trim().max(120).default(""),
+    is_active: z.boolean().default(true),
+  })
+  .refine(
+    (d) =>
+      (d.payment_method === "till" && /^[0-9]{4,10}$/.test(d.till_number)) ||
+      (d.payment_method === "paybill" && /^[0-9]{4,10}$/.test(d.paybill_number)) ||
+      (d.payment_method === "payhero" && d.channel_id.length >= 1),
+    {
+      message:
+        "Enter the number for the chosen payment method (Till/PayBill: 4–10 digits; PayHero: channel ID)",
+      path: ["payment_method"],
+    },
+  );
+
+export type PaymentChannelInput = z.infer<typeof PaymentChannelSchema>;
