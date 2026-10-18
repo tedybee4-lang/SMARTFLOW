@@ -8,7 +8,6 @@ export async function POST(req: Request) {
   const limited = rateLimited(req, 10);
   if (limited) return limited;
 
-  // Validate input
   let body: unknown;
   try {
     body = await req.json();
@@ -25,10 +24,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid Kenyan phone number" }, { status: 400 });
   }
   if (isReservedSlug(slug)) {
-    return NextResponse.json({ error: "That storefront link is reserved — choose another" }, { status: 400 });
+    return NextResponse.json({ error: "That storefront link is reserved - choose another" }, { status: 400 });
   }
 
-  // Server-side auth: owner is derived from the session, never from the body.
   const sb = await supabaseServer();
   const { data: { user }, error: authErr } = await sb.auth.getUser();
   if (authErr || !user) {
@@ -36,7 +34,9 @@ export async function POST(req: Request) {
   }
   const srv = supabaseServiceRole();
 
-  // Idempotency: if this account already owns a business, return it instead of creating another.
+  // Idempotency: if this account already owns a business, return it instead
+  // of creating another (prevents duplicate businesses / duplicate trials on
+  // retry or double-submit).
   const { data: existingRow } = await srv
     .from("businesses")
     .select("id")
@@ -53,28 +53,26 @@ export async function POST(req: Request) {
     .eq("slug", slug)
     .maybeSingle();
   if (slugRow) {
-    return NextResponse.json({ error: "That storefront link is already taken — try another" }, { status: 409 });
+    return NextResponse.json({ error: "That storefront link is already taken - try another" }, { status: 409 });
   }
 
-  // Insert business (user-scoped client: RLS enforces owner_user_id = auth.uid()).
-  const { data: biz, error: bizErr } = await sb
+  // Insert business via SERVICE ROLE: the user-scoped client cannot create the
+  // owner membership (RLS requires an existing owner role — a chicken-and-egg
+  // on first business creation / live PGRST116). Server-side auth above is the
+  // trust boundary; owner_user_id is derived from the session, never the body.
+  const { data: biz, error: bizErr } = await srv
     .from("businesses")
     .insert({ name, slug, business_type, phone_e164: phoneE164, location, owner_user_id: user.id })
     .select("id")
     .single();
   if (bizErr || !biz) {
     if (bizErr?.code === "23505") {
-      return NextResponse.json({ error: "That storefront link is already taken — try another" }, { status: 409 });
+      return NextResponse.json({ error: "That storefront link is already taken - try another" }, { status: 409 });
     }
-    // Never leak internal schema/column details to the client.
-    return NextResponse.json({ error: "Could not create business — please try again." }, { status: 500 });
+    return NextResponse.json({ error: "Could not create business - please try again." }, { status: 500 });
   }
 
-  // Insert owner membership (user-scoped client: RLS "owners add members" check).
-  // upsert() with onConflict("business_id,user_id") keeps this idempotent: a retried
-  // or duplicate request that already created the membership row is a no-op, and
-  // data is returned so a retry can confirm the row exists without a second round-trip.
-  const { error: memErr } = await sb
+  const { error: memErr } = await srv
     .from("memberships")
     .upsert(
       [{ business_id: biz.id, user_id: user.id, role: "owner" }],
@@ -82,15 +80,11 @@ export async function POST(req: Request) {
     )
     .select("business_id");
   if (memErr) {
-    // Roll back the half-created business so a retry starts clean.
     await srv.from("businesses").delete().eq("id", biz.id);
-    // Never surface DB internals — the 23505 unique violation is already
-    // handled above; anything else here is a generic setup failure.
-    return NextResponse.json({ error: "Could not complete setup — please try again." }, { status: 500 });
+    return NextResponse.json({ error: "Could not complete setup - please try again." }, { status: 500 });
   }
 
-  // Verify membership is queryable before sending the user to the dashboard.
-  const { data: membership } = await sb
+  const { data: membership } = await srv
     .from("memberships")
     .select("business_id")
     .eq("business_id", biz.id)
@@ -99,13 +93,16 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (!membership) {
     await srv.from("businesses").delete().eq("id", biz.id);
-    return NextResponse.json({ error: "Setup could not be verified — please try again." }, { status: 500 });
+    return NextResponse.json({ error: "Setup could not be verified - please try again." }, { status: 500 });
   }
 
-  // Best-effort defaults (service role; non-critical, ignore failures).
+  // Best-effort bootstrap rows — a failure here must NOT fail onboarding
+  // (the business + owner membership above are the source of truth).
+  // NOTE: storefronts has NO `slug`/`published` columns — it uses
+  // `is_published` keyed by business_id (see migration 0004b).
   await Promise.allSettled([
     srv.from("branches").insert({ business_id: biz.id, name: "Main", is_default: true }),
-    srv.from("storefronts").insert({ business_id: biz.id, slug, published: false }),
+    srv.from("storefronts").insert({ business_id: biz.id, is_published: false }),
     srv.from("audit_logs").insert({ business_id: biz.id, actor_user_id: user.id, entity: "business", entity_id: biz.id, action: "create" }),
   ]);
 

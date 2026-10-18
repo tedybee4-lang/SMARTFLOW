@@ -10,12 +10,18 @@ beforeAll(async () => {
   POST = mod.POST;
 });
 
-/** Regression test for the onboarding "missing phone_e164 column" failure.
+/** Regression tests for the onboarding failure and its live-DB extensions.
  *
- * Migration 0001 created businesses.phone but not businesses.phone_e164, so the
- * onboarding insert used to fail with a schema-cache error that leaked internal
- * DB details to the client. The fix adds phone_e164 additively (0006) AND
- * sanitises the 500 error so users never see schema/column internals.
+ * ROOT CAUSES (both live-verified):
+ * 1. Missing column: migration 0001 created businesses.phone but not
+ *    businesses.phone_e164, so the insert failed with a schema-cache error
+ *    (PGRST204) that leaked internal DB details to the client. Fixed by
+ *    additive migration 0006 + sanitised 500 errors.
+ * 2. RLS chicken-and-egg (live PGRST116): the business insert used the
+ *    user-scoped client, and the owner-membership write must use the service
+ *    role — no fresh membership can satisfy has_role(owner) before the first
+ *    owner row exists. Inserts now go through the service role; the session
+ *    user is the trust boundary (owner_user_id from session, never the body).
  */
 
 const mockGetUser = vi.fn();
@@ -133,7 +139,7 @@ describe("/api/onboarding error sanitisation", () => {
     const body = await res.json();
 
     expect(res.status).toBe(500);
-    expect(body.error).toBe("Could not create business — please try again.");
+    expect(body.error).toBe("Could not create business - please try again.");
     expect(String(body.error)).not.toContain("phone_e164");
     expect(String(body.error)).not.toContain("schema cache");
     expect(String(body.error)).not.toContain("column");
@@ -170,7 +176,7 @@ describe("/api/onboarding error sanitisation", () => {
     const body = await res.json();
 
     expect(res.status).toBe(500);
-    expect(body.error).toBe("Could not complete setup — please try again.");
+    expect(body.error).toBe("Could not complete setup - please try again.");
     expect(String(body.error)).not.toContain("boom");
   });
 
@@ -193,7 +199,7 @@ describe("/api/onboarding error sanitisation", () => {
     const body = await res.json();
 
     expect(res.status).toBe(500);
-    expect(body.error).toBe("Setup could not be verified — please try again.");
+    expect(body.error).toBe("Setup could not be verified - please try again.");
   });
 
   it("still requires authentication", async () => {
