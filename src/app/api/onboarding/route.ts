@@ -66,7 +66,8 @@ export async function POST(req: Request) {
     if (bizErr?.code === "23505") {
       return NextResponse.json({ error: "That storefront link is already taken — try another" }, { status: 409 });
     }
-    return NextResponse.json({ error: "Could not create business: " + (bizErr?.message ?? "unknown error") }, { status: 500 });
+    // Never leak internal schema/column details to the client.
+    return NextResponse.json({ error: "Could not create business — please try again." }, { status: 500 });
   }
 
   // Insert owner membership (user-scoped client: RLS "owners add members" check).
