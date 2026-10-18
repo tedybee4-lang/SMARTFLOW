@@ -137,6 +137,18 @@
 | 5A.6 | Tests: 9 new (`storefront.test.ts` — reserved/malformed/taken slugs, 23505 sanitisation, slug-omitted content save, GET shape) | ✅ Verified | `npm test` → **89/89 across 10 files** |
 | 5A.7 | typecheck clean, lint 0 errors, build clean | ✅ Verified | `npm run typecheck && npm run lint && npm run build` |
 
+## 6A. Stage 6 — LANDING PAGE PROFESSIONAL POLISH (COMPLETED this session)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 6A.1 | Existing landing verified professional (hero, solutions ×12, how-it-works, pricing from live DB, business types, CTA, contact) — reused, not rebuilt | ✅ Verified existing | `src/app/(marketing)/page.tsx` |
+| 6A.2 | **New Features section** `id="features"` — 6 cards (POS, inventory, storefront, reports, staff, M-Pesa); fixes the previously broken `/#features` nav/footer anchor | ✅ Done | `src/app/(marketing)/page.tsx` |
+| 6A.3 | **New FAQ section** `id="faq"` — 6 `<details>` items (trial, revenue cut, payments, storefront link, staff, support); accessible, no JS | ✅ Done | `src/app/(marketing)/page.tsx` |
+| 6A.4 | Trial wording aligned with Stage 3 — CTA now "7-day free trial, no card needed" (was "first month on us"); pricing subheading mentions trial | ✅ Done | `src/app/(marketing)/page.tsx` |
+| 6A.5 | Nav + footer FAQ links added | ✅ Done | `marketing-nav.tsx`, `marketing-footer.tsx` |
+| 6A.6 | SEO metadata verified at root (title template + description) | ✅ Verified | `src/app/layout.tsx` |
+| 6A.7 | 89/89 tests, typecheck, lint, build all green | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
+
 ## 4. Remaining Phases
 
 | Phase | Scope | Dependency |

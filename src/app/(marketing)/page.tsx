@@ -104,6 +104,33 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* ============ FEATURES ============ */}
+      <section id="features" className="bg-white py-20 border-b border-slate-200">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading eyebrow="Everything included" title="Run the whole shop in one place" sub="From the counter to the cloud — the tools you would otherwise stitch together from five apps." />
+          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {([
+              ["Point of sale", "Ring up sales at the counter with cash, M-Pesa or credit — stock updates instantly, receipts print, end-of-day cash-up just works.", "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.3 4.6a1 1 0 00.9 1.4H19"],
+              ["Inventory that adds up", "Stock movements per product, low-stock alerts and a purchase ledger — every unit in, every unit out, accounted for.", "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10l8 4"],
+              ["Online storefront", "A unique link for your shop where customers browse and order — orders land straight in your dashboard.", "M3 9l1-5h16l1 5M4 9v11h16V9M4 9h16M9 20v-6h6v6"],
+              ["Reports you can trust", "Daily sales, expenses, profit and top products — real numbers from real records, not guesswork.", "M9 17v-6m4 6V7m4 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"],
+              ["Staff & roles", "Give each employee their own login with the right permissions — and see who did what in the audit log.", "M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-8 0 4 4 0 008 0zm6-1a4 4 0 11-3-3.87"],
+              ["M-Pesa ready", "Configure your Till or PayBill, collect with STK push through PayHero, and pay your subscription the same way.", "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"],
+            ] as Array<[string, string, string]>).map(([title, desc, icon]) => (
+              <div key={title} className="rounded-xl border border-slate-200 bg-white p-6 hover:border-blue-200 hover:shadow-md transition-colors">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-900 text-white">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d={icon} />
+                  </svg>
+                </div>
+                <h3 className="mt-4 text-lg font-bold text-navy-900">{title}</h3>
+                <p className="mt-2 text-sm text-slate-600">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ============ HOW IT WORKS ============ */}
       <section id="how-it-works" className="bg-slate-50 py-20">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -122,7 +149,7 @@ export default async function Home() {
       {/* ============ PRICING ============ */}
       <section id="pricing" className="bg-white py-20 border-y border-slate-200">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <SectionHeading eyebrow="Simple, monthly pricing" title="One plan, one price" sub="All prices in KSh, billed monthly via M-Pesa through PayHero. No setup fees, no per-sale commission." />
+          <SectionHeading eyebrow="Simple, monthly pricing" title="One plan, one price" sub="Start with a 7-day free trial. All prices in KSh, billed monthly via M-Pesa through PayHero. No setup fees, no per-sale commission." />
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {plans.map((plan) => (
               <div key={plan.code} className="rounded-2xl border border-slate-200 bg-white p-8 hover:border-blue-200 hover:shadow-lg transition-colors flex flex-col">
@@ -173,13 +200,56 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* ============ FAQ ============ */}
+      <section id="faq" className="bg-white py-20 border-y border-slate-200">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+          <SectionHeading eyebrow="FAQ" title="Questions, answered" sub="Everything you need to know before you start." />
+          <div className="mt-12 grid gap-3">
+            {([
+              [
+                "How does the 7-day free trial work?",
+                "Every new business gets full access for 7 days — no card required. After the trial ends, pick a plan to keep selling; your data stays exactly where it is.",
+              ],
+              [
+                "Do you take a cut of my sales?",
+                "No. SMARTFLOW charges only the monthly subscription. Money your customers pay flows directly to your business through your own M-Pesa Till, PayBill or PayHero channel.",
+              ],
+              [
+                "How do customers pay their subscription?",
+                "Monthly via M-Pesa through PayHero — an STK push reaches your phone and you approve it with your PIN. No bank details, no card.",
+              ],
+              [
+                "What is my storefront link?",
+                "Every business gets a unique URL like /s/your-shop. Customers browse your products and send orders straight into your dashboard. You can rename the link in Storefront settings.",
+              ],
+              [
+                "Can my staff have their own logins?",
+                "Yes. Invite staff and give each a role — cashier, manager, stockkeeper and more. Every action they take is recorded in the audit log.",
+              ],
+              [
+                "What if I need help?",
+                `Call or text ${SUPPORT_PHONE_DISPLAY} — a real person walks you through setup and migrating your existing records.`,
+              ],
+            ] as Array<[string, string]>).map(([q, a]) => (
+              <details key={q} className="group rounded-xl border border-slate-200 bg-white p-5 open:border-blue-200 open:shadow-sm transition-colors">
+                <summary className="cursor-pointer list-none font-semibold text-navy-900 marker:hidden">
+                  <span className="mr-2 inline-block text-blue-600 transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+                  {q}
+                </summary>
+                <p className="mt-3 pl-6 text-sm leading-relaxed text-slate-600">{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ============ CTA ============ */}
       <section className="bg-navy-900 py-20">
         <div className="relative mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-24">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.15),transparent_50%)]" aria-hidden="true" />
           <div className="relative max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Ready to open your shop?</h2>
-            <p className="mt-4 text-lg text-slate-300">Create your account in under two minutes — your first month is on us.</p>
+            <p className="mt-4 text-lg text-slate-300">Create your account in under two minutes — start with a 7-day free trial, no card needed.</p>
             <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link href="/register" className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 px-8 py-4 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:from-orange-600 hover:to-rose-600">
                 Create Account
