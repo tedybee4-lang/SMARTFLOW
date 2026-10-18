@@ -86,3 +86,55 @@ export const PaymentChannelSchema = z
   );
 
 export type PaymentChannelInput = z.infer<typeof PaymentChannelSchema>;
+
+/** SMS credit package purchase (POST /api/sms/purchase). */
+export const SmsPurchaseSchema = z.object({
+  business_id: z.string().uuid(),
+  package_id: z.string().uuid(),
+  phone: z.string().min(9).max(20),
+});
+
+export type SmsPurchaseInput = z.infer<typeof SmsPurchaseSchema>;
+
+/** Billable SMS send (POST /api/sms/send). */
+export const SmsSendSchema = z.object({
+  business_id: z.string().uuid(),
+  to: z.string().min(9).max(20),
+  message: z.string().min(1).max(2000),
+  idempotency_key: z.string().trim().min(8).max(120).optional(),
+});
+
+export type SmsSendInput = z.infer<typeof SmsSendSchema>;
+
+/** Platform-admin SMS test console (POST /api/sms/test). Never ledger-billed. */
+export const SmsTestSchema = z.object({
+  to: z.string().min(9).max(20),
+  message: z.string().min(1).max(500),
+});
+
+export type SmsTestInput = z.infer<typeof SmsTestSchema>;
+
+/** Platform-admin SMS package create/update (POST/PATCH /api/admin/sms-packages). */
+export const SmsPackageManageSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(2).max(120).optional(),
+  credits: z.number().int().positive().max(100000).optional(),
+  price_kes: z.number().min(0).max(10000000).optional(),
+  is_active: z.boolean().optional(),
+});
+
+export type SmsPackageManageInput = z.infer<typeof SmsPackageManageSchema>;
+
+/**
+ * Platform-admin PayHero account test (POST /api/admin/payhero-test).
+ * Dry-run validates config + payload without charging. Live send requires
+ * explicit confirm_live + small amount and initiates a REAL STK push.
+ */
+export const PayHeroTestSchema = z.object({
+  phone: z.string().min(9).max(20),
+  amount: z.number().positive().max(100000).default(10),
+  channel_id: z.string().trim().min(1).max(120).optional(),
+  confirm_live: z.boolean().default(false),
+});
+
+export type PayHeroTestInput = z.infer<typeof PayHeroTestSchema>;

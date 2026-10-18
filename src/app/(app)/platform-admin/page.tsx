@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { isPlatformAdmin } from "@/lib/auth";
 import { supabaseServiceRole } from "@/lib/supabase-server";
+import AdminConsoles from "./consoles";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,8 @@ export default async function PlatformAdminPage() {
           </div>
         ))}
       </div>
+
+      <AdminConsoles />
 
       <section className="card p-5">
         <h2 className="font-bold text-navy-900">Subscription tiers</h2>

@@ -170,7 +170,24 @@
 | 8.3 | Products page — inline edit form, delete with confirmation, stock-on-hand column from `stock_movements` ledger | ✅ Done | `src/app/(app)/products/page.tsx` |
 | 8.4 | 108/108 tests, typecheck, lint, build green | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
 
-## 4. Remaining Phases
+## 8. Stage — CENTRALIZED SMS CREDIT SERVICE + PAYHERO ADMIN CONSOLES (2026-10-18, this session)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 8.1 | Migrations `20261018000003/4/5` — `sms_packages`, `sms_balances`, `sms_ledger` (immutable, idempotent), `sms_purchases`, `sms_messages`; `payment_attempts.sms_purchase_id` + purpose `sms`/`platform`; `business_id` nullable for platform test attempts; `platform_settings` (non-secret only) | ✅ Done | `supabase/migrations/20261018000003_sms_credit_service.sql`, `…004_sms_credit_rls.sql`, `…005_platform_settings.sql` |
+| 8.2 | SMS API — `packages` (public catalog), `balance` (member-scoped), `purchase` (PayHero STK, credits issued only on verified callback), `send` (ledger debit, refund on provider failure), `test` (admin-only, never billed) | ✅ Done | `src/app/api/sms/{packages,balance,purchase,send,test}/route.ts` |
+| 8.3 | Purchase idempotency fixed — dedupe only *recent pending* purchases (15-min window; stale pending auto-expired so retries can proceed); completed/failed purchases never block repurchase | ✅ Done | `src/app/api/sms/purchase/route.ts`; `sms.test.ts` (dedupe + stale-expiry + 503 tests) |
+| 8.4 | Admin API — `sms-packages` (GET/POST/PATCH, platform-admin), `payhero-test` (dry-run payload preview + live STK ≤ KSh 20 with explicit confirm), `platform-settings` (whitelisted non-secret keys only; secrets stay in env) | ✅ Done | `src/app/api/admin/{sms-packages,payhero-test,platform-settings}/route.ts` |
+| 8.5 | Platform-settings resolver — env first, `platform_settings` fallback (`resolveSmsChannelId`); migration comment honoured (env remains runtime fallback) | ✅ Done | `src/lib/platform-settings.ts`; wired into `sms/purchase` + `admin/payhero-test` |
+| 8.6 | Admin consoles UI — tabbed SMS test / PayHero test (dry-run default, live gated by checkbox + ≤20 cap) / SMS package editor, embedded in platform-admin page | ✅ Done | `src/app/(app)/platform-admin/consoles.tsx`, `page.tsx` |
+| 8.7 | `.env.example` — full PayHero block (`PAYHERO_BASIC_TOKEN`, `PAYHERO_ACCOUNT_ID`, `PAYHERO_BASE_URL`, `PAYHERO_SMS_CHANNEL_ID`, `PAYHERO_CALLBACK_URL`) + TOPSPEED block | ✅ Done | `.env.example` |
+| 8.8 | Regression suite — `sms.test.ts` 16 tests (schemas, segments, RBAC 403s, dedupe, stale expiry, 402 insufficient credits, mock-provider send debit, admin 403/503) | ✅ Done | `src/lib/__tests__/sms.test.ts` |
+| 8.9 | Full suite **124/124 passing**; `tsc --noEmit` clean; lint 0 errors (13 pre-existing warnings, none in new files) | ✅ Verified | `npm test && npm run typecheck && npm run lint` |
+
+**Live verification still blocked on env vars** (deployment-only): `TOPSPEED_API_KEY`, `PAYHERO_API_USERNAME/PASSWORD` (or `PAYHERO_BASIC_TOKEN`), `PAYHERO_PLATFORM_CHANNEL_ID`; and remote application of migrations `20261017000007`–`20261018000005`.
+
+---
+
 
 | Phase | Scope | Dependency |
 |-------|-------|------------|

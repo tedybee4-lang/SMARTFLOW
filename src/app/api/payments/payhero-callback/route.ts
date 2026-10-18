@@ -63,6 +63,35 @@ export async function POST(req: Request) {
         channel_id: a.channel_id, status: "completed", idempotency_key: `cb-${a.id}`,
       });
       await srv.from("subscription_invoices").update({ status: "paid" }).eq("id", a.subscription_invoice_id);
+    } else if (a.purpose === "sms") {
+      // SMS package purchase: credit ONLY after verified provider success.
+      // Idempotent via sms_ledger idempotency_key `purchase-${purchaseId}`.
+      const attemptFull = a as typeof a & { sms_purchase_id?: string | null };
+      const purchaseId = attemptFull.sms_purchase_id ?? null;
+      if (purchaseId) {
+        const { data: pur } = await srv.from("sms_purchases")
+          .select("id,business_id,credits,price_kes,status")
+          .eq("id", purchaseId).maybeSingle();
+        const p = pur as { id: string; business_id: string; credits: number; price_kes: number; status: string } | null;
+        if (p && p.status !== "completed") {
+          await srv.from("sms_purchases").update({ status: "completed" }).eq("id", p.id);
+          await srv.from("sms_ledger").insert({
+            business_id: p.business_id,
+            kind: "purchase",
+            credits: p.credits,
+            payment_attempt_id: a.id,
+            idempotency_key: `purchase-${p.id}`,
+            note: `Package purchase ${p.credits} credits for KSh ${p.price_kes}`,
+          });
+          const { data: balRow } = await srv.from("sms_balances")
+            .select("balance").eq("business_id", p.business_id).maybeSingle();
+          const curBal = (balRow as { balance: number } | null)?.balance ?? 0;
+          await srv.from("sms_balances").upsert(
+            { business_id: p.business_id, balance: curBal + p.credits },
+            { onConflict: "business_id" },
+          );
+        }
+      }
     }
     await srv.from("audit_logs").insert({
       business_id: a.business_id, action: "payment.confirmed", entity: "payment_attempts",
