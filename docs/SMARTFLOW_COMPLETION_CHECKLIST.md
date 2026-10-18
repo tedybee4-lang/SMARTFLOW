@@ -161,6 +161,15 @@
 | 7A.6 | Data sourced from real rows only (500-order window, item lookups by week's order ids) | ✅ Done | dashboard queries |
 | 7A.7 | 99/99 tests, typecheck, lint, build green | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
 
+## Stage 8 — PRODUCT EDITING + INVENTORY MANAGEMENT (COMPLETED)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 8.1 | `PUT`/`DELETE /api/products/:id` — role-scoped product update/delete, business scoping, rate-limited, audit-logged | ✅ Done | `src/app/api/products/[id]/route.ts` |
+| 8.2 | Regression suite — 9 tests (403/400/404/200, audit entries, business-id scoping, default-clobber guard) | ✅ Done | `src/lib/__tests__/products.test.ts` |
+| 8.3 | Products page — inline edit form, delete with confirmation, stock-on-hand column from `stock_movements` ledger | ✅ Done | `src/app/(app)/products/page.tsx` |
+| 8.4 | 108/108 tests, typecheck, lint, build green | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
+
 ## 4. Remaining Phases
 
 | Phase | Scope | Dependency |

@@ -15,7 +15,7 @@
 | 5 | Unique business URL slugs + public storefronts | DONE - slug editing w/ uniqueness, /storefront-settings page, 9 tests |
 | 6 | Professional landing-page redesign | DONE - Features + FAQ sections, fixed /#features anchor, trial wording aligned |
 | 7 | Dashboard analytics with graphs | DONE - 7-day SVG chart, delta, top products, recent orders, 10 tests |
-| 8 | Product editing + full inventory management | TODO |
+| 8 | Product editing + full inventory management | DONE - `PUT`/`DELETE /api/products/:id` with role scoping + audit, products page edit/delete + on-hand stock, 9 new tests |
 | 9 | Professional POS + correct financial/stock operations | TODO |
 | 10 | PayHero integration across payment flows | TODO (live creds = external blocker) |
 | 11 | TOPSPEED SMS integration | TODO (API key/sender ID = external blocker) |
@@ -26,7 +26,7 @@
 | 16 | Orders/customers/expenses/suppliers/reports/subscriptions | TODO (routes exist; verify + tests) |
 | 17 | DB integrity, tenant isolation, security, audit logging | TODO |
 | 18 | Consistent responsive UI/UX | TODO |
-| 19 | Automated tests, e2e verification, production readiness | IN PROGRESS (65 unit tests green) |
+| 19 | Automated tests, e2e verification, production readiness | IN PROGRESS (108 unit tests green) |
 
 ## Working rules
 
