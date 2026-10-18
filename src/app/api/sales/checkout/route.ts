@@ -4,6 +4,7 @@ import { supabaseServer, supabaseServiceRole } from "@/lib/supabase-server";
 import { CheckoutSchema } from "@/lib/validation";
 import { orderTotals } from "@/lib/money";
 import { rateLimited } from "@/lib/rate-limit";
+import { evaluateSubscription, blockedMessage } from "@/lib/trial";
 
 /**
  * POST /api/sales/checkout — record a sale with ledger-safe stock deduction.
@@ -27,6 +28,24 @@ export async function POST(req: Request) {
   );
 
   const srv = supabaseServiceRole();
+
+  // Subscription gate: block selling when trial expired / past due / suspended.
+  const { data: subRow } = await srv
+    .from("subscriptions")
+    .select("status,trial_started_at,trial_ends_at,current_period_start,current_period_end,subscription_plans(grace_days)")
+    .eq("business_id", input.business_id)
+    .maybeSingle();
+  const subEval = evaluateSubscription(
+    (subRow ?? null) as unknown as Parameters<typeof evaluateSubscription>[0],
+    new Date(),
+  );
+  if (!subEval.canSell) {
+    return NextResponse.json(
+      { error: blockedMessage(subEval.state) || "Selling is blocked for this subscription" },
+      { status: 402 },
+    );
+  }
+
   const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}`;
   const idem = `sale-${input.business_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 

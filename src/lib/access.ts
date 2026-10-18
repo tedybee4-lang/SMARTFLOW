@@ -28,6 +28,16 @@ export function isBusinessRole(role: string): role is BusinessRole {
   return (BUSINESS_ROLES as readonly string[]).includes(role);
 }
 
+/**
+ * True when a pathname requires an authenticated Supabase session.
+ * Used by src/middleware.ts to redirect anonymous visitors to /sign-in.
+ * Business pages themselves also re-check auth server-side (defence in depth).
+ */
+export function isProtectedRoute(pathname: string): boolean {
+  const family = classifyRoute(pathname);
+  return family === "business" || family === "platformAdmin";
+}
+
 /** Only owners may grant or revoke the `owner` role. */
 export function canAssignRole(actorRole: string, targetRole: string): boolean {
   if (!isBusinessRole(targetRole)) return false; // no privileged/unknown roles ever

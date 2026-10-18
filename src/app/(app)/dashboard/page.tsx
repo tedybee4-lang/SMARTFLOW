@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentUser, requireMembership } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabase-server";
 import { formatKES } from "@/lib/kenya";
+import { evaluateSubscription, blockedMessage } from "@/lib/trial";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +33,21 @@ export default async function DashboardPage() {
   if (!m) return <p>Not authorized.</p>;
   const bid = first.business_id;
   const today = new Date().toISOString().slice(0, 10);
-  const [{ data: orders }, { data: expenses }] = await Promise.all([
+  const [{ data: orders }, { data: expenses }, { data: sub }] = await Promise.all([
     sb.from("orders").select("total_due, amount_paid, status").eq("business_id", bid).gte("created_at", today),
     sb.from("expenses").select("amount").eq("business_id", bid).eq("spent_at", today),
+    sb.from("subscriptions").select("status, trial_started_at, trial_ends_at, current_period_end, subscription_plans(grace_days)").eq("business_id", bid).maybeSingle(),
   ]);
+  const subEval = evaluateSubscription(
+    (sub ?? null) as unknown as Parameters<typeof evaluateSubscription>[0],
+    new Date(),
+  );
+  const trialBanner =
+    subEval.state === "trial" && subEval.trialDaysLeft !== null
+      ? { tone: "info" as const, text: `Free trial — ${subEval.trialDaysLeft} day${subEval.trialDaysLeft === 1 ? "" : "s"} left. Choose a plan to continue selling after it ends.` }
+      : !subEval.canSell
+        ? { tone: "danger" as const, text: blockedMessage(subEval.state) || "Selling is currently blocked." }
+        : null;
   const sales = (orders ?? []).reduce((s: number, o: { total_due: number }) => s + Number(o.total_due), 0);
   const paid = (orders ?? []).reduce((s: number, o: { amount_paid: number }) => s + Number(o.amount_paid), 0);
   const exp = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + Number(e.amount), 0);
@@ -54,6 +66,22 @@ export default async function DashboardPage() {
         </div>
         <Link href={`/orders?bid=${bid}`} className="btn-outline text-sm">View all orders →</Link>
       </div>
+
+      {trialBanner && (
+        <div
+          className={`card p-4 text-sm font-medium ${
+            trialBanner.tone === "danger"
+              ? "border border-rose-200 bg-rose-50 text-rose-800"
+              : "border border-blue-200 bg-blue-50 text-blue-800"
+          }`}
+          role="status"
+        >
+          {trialBanner.text}{" "}
+          <Link href="/subscriptions" className="font-semibold underline">
+            View plans →
+          </Link>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([t, v, grad]) => (

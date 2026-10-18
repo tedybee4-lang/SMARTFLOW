@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { isPlatformAdmin } from "../auth";
+import { isProtectedRoute } from "../access";
 
 /** Brian's verified auth.users id (provisioned platform admin). */
 const BRIAN_ID = "e24c3835-4a3e-40db-9774-e186f72444cb";
@@ -77,5 +78,35 @@ describe("isPlatformAdmin()", () => {
     const result = await isPlatformAdmin();
 
     expect(result).toBe(false);
+  });
+});
+
+describe("isProtectedRoute (middleware gate)", () => {
+  it("protects every business route family including nested paths", () => {
+    expect(isProtectedRoute("/dashboard")).toBe(true);
+    expect(isProtectedRoute("/pos")).toBe(true);
+    expect(isProtectedRoute("/products")).toBe(true);
+    expect(isProtectedRoute("/orders")).toBe(true);
+    expect(isProtectedRoute("/orders/detail")).toBe(true);
+    expect(isProtectedRoute("/staff")).toBe(true);
+    expect(isProtectedRoute("/subscriptions")).toBe(true);
+    expect(isProtectedRoute("/onboarding")).toBe(true);
+    expect(isProtectedRoute("/platform-admin")).toBe(true);
+    expect(isProtectedRoute("/platform-admin/users")).toBe(true);
+  });
+
+  it("leaves public/customer routes open", () => {
+    expect(isProtectedRoute("/")).toBe(false);
+    expect(isProtectedRoute("/sign-in")).toBe(false);
+    expect(isProtectedRoute("/register")).toBe(false);
+    expect(isProtectedRoute("/track")).toBe(false);
+    expect(isProtectedRoute("/cart")).toBe(false);
+    expect(isProtectedRoute("/s/some-shop")).toBe(false);
+    expect(isProtectedRoute("/pricing")).toBe(false);
+  });
+
+  it("does not protect lookalike prefixes", () => {
+    expect(isProtectedRoute("/dashboard-demo")).toBe(false);
+    expect(isProtectedRoute("/onboarding-xyz")).toBe(false);
   });
 });

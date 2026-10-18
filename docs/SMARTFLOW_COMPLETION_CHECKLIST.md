@@ -1,12 +1,22 @@
 # SMARTFLOW Completion Checklist
 
 **Deliverable:** `docs/SMARTFLOW_COMPLETION_CHECKLIST.md`
-**As of:** 2026-10-18 EAT.
-**Repo:** `tedybee4-lang/SMARTFLOW` @ `be87362`.
+**As of:** 2026-10-18 EAT (Stage 2–3 session).
+**Repo:** `tedybee4-lang/SMARTFLOW` @ `main` (post-`dda8c90`).
 **Production:** Vercel `smartflow` (active alias `https://smartflow-4sndves64-malariachrome-7756s-projects.vercel.app`).
 **Supabase project:** `wmszgwrqwlhrfolkwwsn`.
 
 ---
+
+## 0. Stage 1 — CI REPAIR (COMPLETED, `8be30fd` + `dda8c90`)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 0.1 | CI workflow fixed — `working-directory: smartflow` did not exist (repo root IS the app); all 11 prior runs died at `npm ci` in ~10s | ✅ Done | `.github/workflows/ci.yml`; run #12 `completed successfully` (1m2s) |
+| 0.2 | `onboarding.test.ts` query-chain mock fixed (terminal methods consume result queues) | ✅ Done | `src/lib/__tests__/onboarding.test.ts` (6 tests pass) |
+| 0.3 | `payhero.test.ts` recreated (chainable+thenable service-role mock) | ✅ Done | `src/lib/__tests__/payhero.test.ts` (4 tests pass) |
+| 0.4 | Scratch files removed; `.audit-*.log` ignored | ✅ Done | `.gitignore` |
+| 0.5 | First green CI in repo history | ✅ Verified | GitHub Actions run #12 |
 
 ## 1. Phase One — SMARTFLOW ONBOARDING CORE (COMPLETED, be87362)
 
@@ -75,7 +85,34 @@
 
 ---
 
-## 4. Remaining Phases (unblocked, not yet run)
+## 2A. Stage 2 — AUTH & ONBOARDING VERIFICATION (COMPLETED this session)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 2A.1 | Registration flow: Supabase signUp, email verification, resend, error mapping | ✅ Verified existing | `src/app/(marketing)/register/page.tsx` + `src/lib/registration.ts` (zod) |
+| 2A.2 | Sign-in + forgot password + `?next=` redirect sanitisation | ✅ Verified existing | `src/app/(marketing)/sign-in/page.tsx`; `sanitizeRedirect` blocks `//evil`, `/api/` targets |
+| 2A.3 | Email-link callback (verification + recovery) with `exchangeCodeForSession` | ✅ Verified existing | `src/app/auth/callback/page.tsx` |
+| 2A.4 | **New: server-side auth middleware** — session refresh via `@supabase/ssr` + anonymous redirect to `/sign-in?next=…` for all business/platform-admin pages | ✅ Done | `src/middleware.ts` (matcher covers /dashboard,/pos,/products,/orders,/customers,/expenses,/reports,/staff,/storefront-settings,/subscriptions,/onboarding,/platform-admin) |
+| 2A.5 | `isProtectedRoute()` pure helper (single source of truth for the gate) | ✅ Done | `src/lib/access.ts` + 3 tests in `auth.test.ts` |
+| 2A.6 | Defence in depth: pages/APIs still re-check session + membership + RLS server-side | ✅ Verified | `requireMembership` in every API route; dashboard/pos/products pages call `currentUser()` |
+| 2A.7 | Onboarding API: auth-derived owner, slug uniqueness (service-role pre-check + 23505), idempotent re-submit, membership rollback on failure, sanitised 500s, rate limit 10/min | ✅ Verified (tests) | `src/app/api/onboarding/route.ts` + `onboarding.test.ts` (6 tests) |
+| 2A.8 | Middleware verified in build (route registered) | ✅ Verified | `next build` output: "Proxy (Middleware) ✓" |
+
+## 3A. Stage 3 — AUTOMATIC 7-DAY TRIALS (COMPLETED this session; migration pending remote apply)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 3A.1 | Migration `20261018000001_trial_enforcement.sql` — adds `trial_started_at`/`trial_ends_at` to `subscriptions`; `ensure_trial_subscription()` SECURITY DEFINER trigger on `businesses` insert (7-day trial, `ON CONFLICT DO NOTHING`); backfills existing businesses from `created_at` | ✅ Written | `supabase/migrations/20261018000001_trial_enforcement.sql` |
+| 3A.2 | Pure state machine `src/lib/trial.ts` — `computeTrialEnd`, `evaluateSubscription` (states: none/trial/trial_expired/active/grace/past_due/suspended/cancelled; unknown status fails closed), `blockedMessage` | ✅ Done | `src/lib/trial.ts` + 17 tests in `trial.test.ts` |
+| 3A.3 | `/api/subscriptions/access` returns `state`, `trial.days_left`, `can_sell`, `blocked_reason` | ✅ Done | `src/app/api/subscriptions/access/route.ts` + 6 tests in `subscriptions.test.ts` |
+| 3A.4 | Sales enforcement: `/api/sales/checkout` returns **402** with a human reason when trial expired / past due / suspended | ✅ Done | `src/app/api/sales/checkout/route.ts` (gate after membership check, before order insert) |
+| 3A.5 | Dashboard banner: trial countdown (info) or blocked reason (danger) with "View plans →" link | ✅ Done | `src/app/(app)/dashboard/page.tsx` |
+| 3A.6 | Verification: 65/65 tests, `tsc --noEmit` clean, lint 0 errors, build clean | ✅ Verified | `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` |
+| 3A.7 | Apply migration remotely (`supabase db push`) — **blocked: no Supabase CLI credentials in this environment** | ⏳ Pending | Run `supabase db push` or paste SQL into the Supabase SQL editor; trigger + backfill run automatically |
+
+---
+
+## 4. Remaining Phases
 
 | Phase | Scope | Dependency |
 |-------|-------|------------|
