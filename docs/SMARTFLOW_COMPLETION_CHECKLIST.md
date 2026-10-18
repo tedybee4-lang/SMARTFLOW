@@ -125,6 +125,18 @@
 | 4A.7 | Full checks: typecheck clean, lint 0 errors, build clean (middleware + /settings route registered) | ✅ Verified | `npm run typecheck && npm run lint && npm run build` |
 | 4A.8 | Migration pending remote apply — same Supabase-CLI-credentials blocker as `0007` | ⏳ Pending | Apply 0007+0008 together via `supabase db push` |
 
+## 5A. Stage 5 — UNIQUE SLUGS & PUBLIC STOREFRONTS (COMPLETED this session)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 5A.1 | Public storefront `/s/[slug]` verified — business lookup, published gate, product grid, cart links | ✅ Verified existing | `src/app/(marketing)/s/[slug]/page.tsx` |
+| 5A.2 | Slug editing by owners/managers: format regex + reserved list + service-role uniqueness pre-check + 23505 race handling → 409 | ✅ Done | `src/app/api/storefront/route.ts` (POST) |
+| 5A.3 | GET returns `storefront` + current `slug` for settings UI | ✅ Done | `src/app/api/storefront/route.ts` (GET) |
+| 5A.4 | `/storefront-settings` page — public URL display + preview link, slug editor, publish toggle, hero/delivery/WhatsApp form with real load/save | ✅ Done | `src/app/(app)/storefront-settings/page.tsx` |
+| 5A.5 | Sidebar "Storefront" link; route already in business families + middleware matcher | ✅ Done | `src/components/app-sidebar.tsx` |
+| 5A.6 | Tests: 9 new (`storefront.test.ts` — reserved/malformed/taken slugs, 23505 sanitisation, slug-omitted content save, GET shape) | ✅ Verified | `npm test` → **89/89 across 10 files** |
+| 5A.7 | typecheck clean, lint 0 errors, build clean | ✅ Verified | `npm run typecheck && npm run lint && npm run build` |
+
 ## 4. Remaining Phases
 
 | Phase | Scope | Dependency |

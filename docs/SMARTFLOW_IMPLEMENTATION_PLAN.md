@@ -12,7 +12,7 @@
 | 2 | Auth and onboarding verification + server-side middleware | DONE - `src/middleware.ts`, `isProtectedRoute`, register/sign-in/callback/onboarding verified |
 | 3 | Automatic 7-day trials + subscription enforcement | DONE - CI green run #13; migrations 0007/0008 pending remote apply |
 | 4 | Business Till and PayBill settings | DONE - migration 0008, GET/PUT /api/business/payment-channel, /settings page, 15 tests |
-| 5 | Unique business URL slugs + public storefronts | TODO |
+| 5 | Unique business URL slugs + public storefronts | DONE - slug editing w/ uniqueness, /storefront-settings page, 9 tests |
 | 6 | Professional landing-page redesign | TODO |
 | 7 | Dashboard analytics with graphs | TODO |
 | 8 | Product editing + full inventory management | TODO |
@@ -34,4 +34,5 @@
 - Every stage: implement, test, typecheck/lint/build, update checklist with evidence, commit, push, verify CI.
 - Never block the whole mission on external credentials; document blockers and continue.
 - No force-pushes; commits land on `main` via normal pushes.
+
 
