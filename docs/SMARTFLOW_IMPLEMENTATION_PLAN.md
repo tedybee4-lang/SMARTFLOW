@@ -14,7 +14,7 @@
 | 4 | Business Till and PayBill settings | DONE - migration 0008, GET/PUT /api/business/payment-channel, /settings page, 15 tests |
 | 5 | Unique business URL slugs + public storefronts | DONE - slug editing w/ uniqueness, /storefront-settings page, 9 tests |
 | 6 | Professional landing-page redesign | DONE - Features + FAQ sections, fixed /#features anchor, trial wording aligned |
-| 7 | Dashboard analytics with graphs | TODO |
+| 7 | Dashboard analytics with graphs | DONE - 7-day SVG chart, delta, top products, recent orders, 10 tests |
 | 8 | Product editing + full inventory management | TODO |
 | 9 | Professional POS + correct financial/stock operations | TODO |
 | 10 | PayHero integration across payment flows | TODO (live creds = external blocker) |
@@ -34,6 +34,7 @@
 - Every stage: implement, test, typecheck/lint/build, update checklist with evidence, commit, push, verify CI.
 - Never block the whole mission on external credentials; document blockers and continue.
 - No force-pushes; commits land on `main` via normal pushes.
+
 
 
 

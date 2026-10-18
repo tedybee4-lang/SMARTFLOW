@@ -149,6 +149,18 @@
 | 6A.6 | SEO metadata verified at root (title template + description) | ✅ Verified | `src/app/layout.tsx` |
 | 6A.7 | 89/89 tests, typecheck, lint, build all green | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
 
+## 7A. Stage 7 — DASHBOARD ANALYTICS & GRAPHS (COMPLETED this session)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------------|
+| 7A.1 | `src/lib/analytics.ts` — pure helpers: `lastNDays`, `aggregateDailySales` (zero-filled, 2-dp), `topProducts` (merge+sort), `pctChange` | ✅ Done | `src/lib/analytics.ts` + 10 tests in `analytics.test.ts` |
+| 7A.2 | 7-day sales bar chart — server-rendered SVG (no new deps), per-bar `<title>` tooltips, today highlighted, `role="img"` + sr-only table fallback | ✅ Done | `src/app/(app)/dashboard/page.tsx` |
+| 7A.3 | Week total + "vs yesterday" delta (▲/▼ %) above the chart | ✅ Done | dashboard `pctChange(daily[6], daily[5])` |
+| 7A.4 | Top products (7 days) — top 5 by revenue from real `order_items` | ✅ Done | dashboard panel, `topProducts` |
+| 7A.5 | Recent orders — last 5 with order no, timestamp, payment badge, total | ✅ Done | dashboard panel |
+| 7A.6 | Data sourced from real rows only (500-order window, item lookups by week's order ids) | ✅ Done | dashboard queries |
+| 7A.7 | 99/99 tests, typecheck, lint, build green | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
+
 ## 4. Remaining Phases
 
 | Phase | Scope | Dependency |
