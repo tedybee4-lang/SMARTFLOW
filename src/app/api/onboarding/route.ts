@@ -71,15 +71,22 @@ export async function POST(req: Request) {
   }
 
   // Insert owner membership (user-scoped client: RLS "owners add members" check).
-  const { error: memErr } = await sb.from("memberships").insert({
-    business_id: biz.id,
-    user_id: user.id,
-    role: "owner",
-  });
+  // upsert() with onConflict("business_id,user_id") keeps this idempotent: a retried
+  // or duplicate request that already created the membership row is a no-op, and
+  // data is returned so a retry can confirm the row exists without a second round-trip.
+  const { error: memErr } = await sb
+    .from("memberships")
+    .upsert(
+      [{ business_id: biz.id, user_id: user.id, role: "owner" }],
+      { onConflict: "business_id,user_id" },
+    )
+    .select("business_id");
   if (memErr) {
     // Roll back the half-created business so a retry starts clean.
     await srv.from("businesses").delete().eq("id", biz.id);
-    return NextResponse.json({ error: "Could not complete setup: " + memErr.message }, { status: 500 });
+    // Never surface DB internals — the 23505 unique violation is already
+    // handled above; anything else here is a generic setup failure.
+    return NextResponse.json({ error: "Could not complete setup — please try again." }, { status: 500 });
   }
 
   // Verify membership is queryable before sending the user to the dashboard.

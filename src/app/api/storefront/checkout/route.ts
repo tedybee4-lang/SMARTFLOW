@@ -59,6 +59,7 @@ export async function POST(req: Request) {
   }
 
   const orderNo = `WEB-${Date.now().toString(36).toUpperCase()}`;
+  const idem = `web-${b.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const { data: order, error } = await srv.from("orders").insert({
     business_id: b.id, customer_id: customerId, order_no: orderNo,
     status: "placed", payment_status: "unpaid",
@@ -71,6 +72,19 @@ export async function POST(req: Request) {
     order_id: (order as { id: string }).id, product_id: l.product_id,
     name_snapshot: l.name, qty: l.qty, unit_price: l.unit_price, discount: 0, line_total: l.line_total,
   })));
+
+  // Ledger-safe stock deduction: every storefront order removes stock once,
+  // keyed by order+product so a retried checkout cannot double-deduct.
+  for (const l of lines) {
+    await srv.from("stock_movements").insert({
+      business_id: b.id, product_id: l.product_id,
+      quantity_delta: -Math.abs(l.qty), reason: "sale",
+      ref_type: "order", ref_id: (order as { id: string }).id,
+      idempotency_key: `${idem}-${l.product_id}`,
+    });
+  }
+  await srv.from("orders").update({ stock_deducted: true }).eq("id", (order as { id: string }).id);
+
   await srv.from("audit_logs").insert({
     business_id: b.id, action: "order.placed_online", entity: "orders",
     entity_id: (order as { id: string }).id, after_data: { total_due: totalDue, fulfillment: input.fulfillment },

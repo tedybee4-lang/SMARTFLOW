@@ -21,8 +21,16 @@ export async function POST(req: Request) {
   const { business_id, period_start, period_end } = parsed.data;
   const srv = supabaseServiceRole();
 
+  // Boundary-safe window: period_end is a calendar date, so we must include
+  // the whole final day. Comparing a timestamptz to a bare date string
+  // (`.lte("created_at", period_end)`) silently drops everything after
+  // 00:00:00 on the last day. Shift the upper bound to the next midnight.
+  const periodEndExclusive = new Date(`${period_end}T00:00:00Z`);
+  periodEndExclusive.setUTCDate(periodEndExclusive.getUTCDate() + 1);
+  const periodEndExclusiveISO = periodEndExclusive.toISOString().slice(0, 10);
+
   const { data: orders } = await srv.from("orders").select("total_due,status")
-    .eq("business_id", business_id).gte("created_at", period_start).lte("created_at", period_end)
+    .eq("business_id", business_id).gte("created_at", period_start).lt("created_at", periodEndExclusiveISO)
     .not("status", "in", "(cancelled,refunded,failed)");
   const qualifying = Math.round(((orders ?? []) as { total_due: number }[]).reduce((s, o) => s + Number(o.total_due), 0) * 100) / 100;
 

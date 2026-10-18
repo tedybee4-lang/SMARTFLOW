@@ -40,10 +40,11 @@ export async function POST(req: Request) {
     const pay = amount ?? Number(o.total_due);
     patch.payment_status = pay >= Number(o.total_due) ? "paid" : "partial";
     patch.amount_paid = Math.round((Number(o.amount_paid) + pay) * 100) / 100;
+    // Idempotency: same order + amount re-submitted is a no-op (unique key).
     await srv.from("payments").insert({
       business_id: o.business_id, order_id, method: "offline",
       amount: pay, status: "completed",
-      idempotency_key: `confirm-${order_id}-${Date.now()}`, received_by: m.user.id,
+      idempotency_key: `confirm-${order_id}-${Math.round(pay * 100)}`, received_by: m.user.id,
     });
   } else if (action === "start_processing") {
     patch.status = "processing";

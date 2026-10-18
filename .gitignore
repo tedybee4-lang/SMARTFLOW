@@ -44,3 +44,7 @@ supabase/schemas.sql
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# audit logs
+.audit-*.log
+

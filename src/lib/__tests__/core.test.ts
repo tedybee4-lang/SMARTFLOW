@@ -50,3 +50,29 @@ describe("subscription tiers", () => {
     expect(tierFeeForSales(5_000_000)).toBe(-1);
   });
 });
+
+describe("staff role assignment guards", () => {
+  it("only owners may grant the owner role", async () => {
+    const { canAssignRole } = await import("../access");
+    expect(canAssignRole("owner", "owner")).toBe(true);
+    expect(canAssignRole("manager", "owner")).toBe(false);
+    expect(canAssignRole("cashier", "owner")).toBe(false);
+  });
+  it("owners and managers grant staff roles; unknown roles never pass", async () => {
+    const { canAssignRole } = await import("../access");
+    for (const target of ["manager", "cashier", "salesperson", "stockkeeper", "accountant", "delivery", "support"]) {
+      expect(canAssignRole("owner", target)).toBe(true);
+      expect(canAssignRole("manager", target)).toBe(true);
+      expect(canAssignRole("cashier", target)).toBe(false);
+    }
+    expect(canAssignRole("owner", "platform_admin")).toBe(false);
+    expect(canAssignRole("owner", "superadmin")).toBe(false);
+  });
+  it("ordinary members can never grant ownership; nobody removes themselves", async () => {
+    const { canAssignRole, canRemoveMember } = await import("../access");
+    expect(canAssignRole("cashier", "owner")).toBe(false);
+    expect(canRemoveMember("owner", "manager", true)).toBe(false);
+    expect(canRemoveMember("manager", "cashier", false)).toBe(true);
+    expect(canRemoveMember("manager", "owner", false)).toBe(false);
+  });
+});
