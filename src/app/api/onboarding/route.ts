@@ -1,44 +1,105 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { supabaseServer, supabaseServiceRole } from "@/lib/supabase-server";
-import { normalizeKEPhone } from "@/lib/kenya";
 import { rateLimited } from "@/lib/rate-limit";
-
-const Schema = z.object({
-  name: z.string().min(2).max(120),
-  slug: z.string().regex(/^[a-z0-9-]+$/),
-  business_type: z.string().default("retail"),
-  phone: z.string().min(9),
-  location: z.string().optional().default(""),
-});
+import { normalizeKEPhone } from "@/lib/kenya";
+import { OnboardingSchema, isReservedSlug } from "@/lib/validation";
 
 export async function POST(req: Request) {
-  const rl = rateLimited(req, 10);
-  if (rl) return rl;
-  const body = await req.json().catch(() => null);
-  const parsed = Schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
-  const phone = normalizeKEPhone(parsed.data.phone);
-  if (!phone) return NextResponse.json({ error: "Invalid Kenyan phone number" }, { status: 400 });
+  const limited = rateLimited(req, 10);
+  if (limited) return limited;
 
+  // Validate input
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const parsed = OnboardingSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+  const { name, slug, business_type, location } = parsed.data;
+  const phoneE164 = normalizeKEPhone(parsed.data.phone);
+  if (!phoneE164) {
+    return NextResponse.json({ error: "Invalid Kenyan phone number" }, { status: 400 });
+  }
+  if (isReservedSlug(slug)) {
+    return NextResponse.json({ error: "That storefront link is reserved — choose another" }, { status: 400 });
+  }
+
+  // Server-side auth: owner is derived from the session, never from the body.
   const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-
-  // Slug must be unique
-  const { data: existing } = await sb.from("businesses").select("id").eq("slug", parsed.data.slug).maybeSingle();
-  if (existing) return NextResponse.json({ error: "Slug already taken" }, { status: 409 });
-
-  // Create via service role, then membership for the owner (server-verified user id)
+  const { data: { user }, error: authErr } = await sb.auth.getUser();
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
   const srv = supabaseServiceRole();
-  const { data: biz, error } = await srv.from("businesses").insert({
-    name: parsed.data.name, slug: parsed.data.slug, business_type: parsed.data.business_type,
-    phone, location: parsed.data.location, owner_user_id: user.id,
-  }).select("id").single();
-  if (error || !biz) return NextResponse.json({ error: "Could not create business" }, { status: 500 });
-  await srv.from("memberships").insert({ business_id: biz.id, user_id: user.id, role: "owner" });
-  await srv.from("branches").insert({ business_id: biz.id, name: "Main branch", is_default: true });
-  await srv.from("storefronts").insert({ business_id: biz.id });
-  await srv.from("audit_logs").insert({ business_id: biz.id, actor_user_id: user.id, action: "business.created", entity: "businesses", entity_id: biz.id });
-  return NextResponse.json({ business_id: biz.id });
+
+  // Idempotency: if this account already owns a business, return it instead of creating another.
+  const { data: existingRow } = await srv
+    .from("businesses")
+    .select("id")
+    .eq("owner_user_id", user.id)
+    .limit(1);
+  if (existingRow && existingRow.length > 0) {
+    return NextResponse.json({ business_id: existingRow[0].id, existing: true });
+  }
+
+  // Slug uniqueness (service role so RLS can't hide a taken slug from this check).
+  const { data: slugRow } = await srv
+    .from("businesses")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (slugRow) {
+    return NextResponse.json({ error: "That storefront link is already taken — try another" }, { status: 409 });
+  }
+
+  // Insert business (user-scoped client: RLS enforces owner_user_id = auth.uid()).
+  const { data: biz, error: bizErr } = await sb
+    .from("businesses")
+    .insert({ name, slug, business_type, phone_e164: phoneE164, location, owner_user_id: user.id })
+    .select("id")
+    .single();
+  if (bizErr || !biz) {
+    if (bizErr?.code === "23505") {
+      return NextResponse.json({ error: "That storefront link is already taken — try another" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Could not create business: " + (bizErr?.message ?? "unknown error") }, { status: 500 });
+  }
+
+  // Insert owner membership (user-scoped client: RLS "owners add members" check).
+  const { error: memErr } = await sb.from("memberships").insert({
+    business_id: biz.id,
+    user_id: user.id,
+    role: "owner",
+  });
+  if (memErr) {
+    // Roll back the half-created business so a retry starts clean.
+    await srv.from("businesses").delete().eq("id", biz.id);
+    return NextResponse.json({ error: "Could not complete setup: " + memErr.message }, { status: 500 });
+  }
+
+  // Verify membership is queryable before sending the user to the dashboard.
+  const { data: membership } = await sb
+    .from("memberships")
+    .select("business_id")
+    .eq("business_id", biz.id)
+    .eq("user_id", user.id)
+    .eq("role", "owner")
+    .maybeSingle();
+  if (!membership) {
+    await srv.from("businesses").delete().eq("id", biz.id);
+    return NextResponse.json({ error: "Setup could not be verified — please try again." }, { status: 500 });
+  }
+
+  // Best-effort defaults (service role; non-critical, ignore failures).
+  await Promise.allSettled([
+    srv.from("branches").insert({ business_id: biz.id, name: "Main", is_default: true }),
+    srv.from("storefronts").insert({ business_id: biz.id, slug, published: false }),
+    srv.from("audit_logs").insert({ business_id: biz.id, actor_user_id: user.id, entity: "business", entity_id: biz.id, action: "create" }),
+  ]);
+
+  return NextResponse.json({ business_id: biz.id, existing: false });
 }

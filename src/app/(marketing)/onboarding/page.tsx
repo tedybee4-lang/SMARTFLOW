@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { normalizeKEPhone } from "@/lib/kenya";
+import { supabaseBrowser } from "@/lib/supabase";
 
 const TYPES = ["retail", "boutique", "electronics", "hardware", "wholesale", "restaurant", "salon", "cybercafe", "services", "other"];
 const STEPS = ["Business profile", "Contact & location", "Review & create"];
@@ -11,7 +12,20 @@ export default function OnboardingPage() {
   const [form, setForm] = useState({ name: "", slug: "", business_type: "retail", phone: "", location: "" });
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const gated = useRef(false);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Business setup requires an authenticated account (register first).
+  useEffect(() => {
+    if (gated.current) return;
+    gated.current = true;
+    supabaseBrowser()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!data.session) window.location.href = "/sign-in?next=/onboarding";
+      });
+  }, []);
+
 
   function next(e: React.FormEvent) {
     e.preventDefault();
@@ -21,11 +35,19 @@ export default function OnboardingPage() {
     setBusy(true);
     setMsg("Saving…");
     if (!normalizeKEPhone(form.phone)) { setMsg("Invalid Kenyan phone number. Use 07XXXXXXXX or +254…"); setBusy(false); return; }
-    const res = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    const j = await res.json();
-    setMsg(res.ok ? "Business created. Opening dashboard…" : (j.error ?? "Failed"));
+    try {
+      const res = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMsg(j.existing ? "Business already set up. Opening dashboard…" : "Business created. Opening dashboard…");
+        setTimeout(() => { window.location.href = "/dashboard"; }, 400);
+        return;
+      }
+      setMsg(j.error ?? "Failed");
+    } catch {
+      setMsg("Network error — check your connection and try again.");
+    }
     setBusy(false);
-    if (res.ok) window.location.href = "/dashboard";
   }
 
   return (
