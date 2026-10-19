@@ -131,4 +131,24 @@
   }
 }
 
+/* Printing the POS receipt: hide everything except the receipt panel. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #pos-receipt,
+  #pos-receipt * {
+    visibility: visible;
+  }
+  #pos-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* thermal printer roll width */
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+}
+
 

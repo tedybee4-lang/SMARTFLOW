@@ -5,6 +5,14 @@ import { supabaseBrowser } from "@/lib/supabase";
 type Product = { id: string; name: string; selling_price: number; barcode: string | null; track_stock: boolean; category_id: string | null };
 type CartLine = { product: Product; qty: number; discount: number };
 type Category = { id: string; name: string };
+// Snapshot of a completed sale, kept only long enough to print a receipt.
+type Receipt = {
+  orderNo: string;
+  method: string;
+  total: number;
+  at: string;
+  lines: { name: string; qty: number; unitPrice: number; discount: number; lineTotal: number }[];
+};
 
 export default function POSPage() {
   const [businessId, setBusinessId] = useState("");
@@ -20,6 +28,7 @@ export default function POSPage() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
   // PayHero M-Pesa collection channel configured for this business (if any).
   const [payheroChannel, setPayheroChannel] = useState("");
   const [stkPhone, setStkPhone] = useState("");
@@ -142,6 +151,20 @@ export default function POSPage() {
         }
         setMsg(`M-Pesa prompt sent to ${stkPhone}. Order ${j.order_no} is paid only once PayHero confirms.`);
       } else {
+        // Confirmed sale (cash/credit): snapshot the cart for the receipt before it is cleared below.
+        setReceipt({
+          orderNo: j.order_no,
+          method: method === "cash" ? "Cash" : "Credit (unpaid)",
+          total: Number(j.totalDue),
+          at: new Date().toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" }),
+          lines: cart.map((l) => ({
+            name: l.product.name,
+            qty: l.qty,
+            unitPrice: Number(l.product.selling_price),
+            discount: l.discount,
+            lineTotal: l.qty * Number(l.product.selling_price) - l.discount,
+          })),
+        });
         setMsg(`Sale recorded: ${j.order_no} — KSh ${Number(j.totalDue).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`);
       }
       setCart([]);
@@ -339,6 +362,41 @@ export default function POSPage() {
           </div>
         </div>
       </div>
+
+      {/* Receipt overlay for the last confirmed sale. Printing shows only this
+          panel (see the print media query in globals.css). */}
+      {receipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Sale receipt">
+          <div className="w-full max-w-sm">
+            <div id="pos-receipt" className="rounded-2xl bg-white p-6 shadow-xl">
+              <div className="text-center">
+                <p className="text-lg font-bold text-navy-900">SMARTFLOW POS</p>
+                <p className="text-xs text-slate-500">{receipt.at}</p>
+              </div>
+              <div className="my-3 border-t border-dashed border-slate-300" />
+              <p className="text-xs text-slate-600">Order <span className="font-mono font-semibold">{receipt.orderNo}</span> · {receipt.method}</p>
+              <ul className="mt-3 space-y-2">
+                {receipt.lines.map((l, i) => (
+                  <li key={i} className="flex justify-between gap-3 text-sm">
+                    <span>{l.qty} × {l.name}{l.discount > 0 && <span className="text-emerald-700"> (−{formatShort(l.discount)})</span>}</span>
+                    <span className="num">{formatShort(l.lineTotal)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="my-3 border-t border-dashed border-slate-300" />
+              <div className="flex justify-between text-base font-bold text-navy-900">
+                <span>Total</span>
+                <span className="num">{formatShort(receipt.total)}</span>
+              </div>
+              <p className="mt-4 text-center text-xs text-slate-400">Asante — thank you for your business!</p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button onClick={() => window.print()} className="btn-primary">🖨️ Print receipt</button>
+              <button onClick={() => setReceipt(null)} className="btn-outline">New sale</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
