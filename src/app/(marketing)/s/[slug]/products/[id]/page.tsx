@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { supabaseServer } from "@/lib/supabase-server";
+import { getPublicProduct, getPublicShop } from "@/lib/public-storefront";
 
 export async function generateMetadata({
   params,
@@ -9,27 +9,18 @@ export async function generateMetadata({
   params: Promise<{ slug: string; id: string }>;
 }): Promise<Metadata> {
   const { slug, id } = await params;
-  const sb = await supabaseServer();
-  const { data: biz } = await sb.from("businesses").select("id,name").eq("slug", slug).maybeSingle();
-  const b = biz as { id: string; name: string } | null;
-  if (!b) {
+  const shop = await getPublicShop(slug);
+  if (!shop) {
     return { title: "Shop not found | SMARTFLOW", description: "The SMARTFLOW shop you requested could not be found." };
   }
-  const { data: product } = await sb
-    .from("products")
-    .select("name,selling_price,attributes")
-    .eq("id", id)
-    .eq("business_id", b.id)
-    .eq("is_active", true)
-    .maybeSingle();
-  const p = product as { name: string; selling_price: number; attributes: Record<string, unknown> } | null;
-  if (!p) {
+  const product = await getPublicProduct(shop.business_id, id);
+  if (!product) {
     return { title: "Product not found | SMARTFLOW", description: "That product is no longer available." };
   }
-  const desc = (p.attributes?.description ?? p.attributes?.details ?? "") as string;
+  const desc = (product.attributes?.description ?? product.attributes?.details ?? "") as string;
   return {
-    title: `${p.name} | ${b.name} | SMARTFLOW`,
-    description: desc || `${p.name} — KSh ${Number(p.selling_price).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`,
+    title: `${product.name} | ${shop.name} | SMARTFLOW`,
+    description: desc || `${product.name} — KSh ${Number(product.selling_price).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`,
   };
 }
 
@@ -39,9 +30,8 @@ export default async function ProductPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
-  const sb = await supabaseServer();
-  const { data: biz } = await sb.from("businesses").select("id,name,slug").eq("slug", slug).maybeSingle();
-  if (!biz) {
+  const shop = await getPublicShop(slug);
+  if (!shop) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
         <h1 className="page-title">Shop not found</h1>
@@ -50,14 +40,8 @@ export default async function ProductPage({
       </div>
     );
   }
-  const b = biz as { id: string; name: string };
-  const { data: product } = await sb
-    .from("products")
-    .select("id,name,sku,barcode,unit,selling_price,tax_rate,photo_url,track_stock,low_stock_threshold,attributes,kind")
-    .eq("id", id)
-    .eq("business_id", b.id)
-    .eq("is_active", true)
-    .maybeSingle();
+  const b = { id: shop.business_id, name: shop.name };
+  const product = await getPublicProduct(b.id, id);
   if (!product) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
@@ -67,10 +51,15 @@ export default async function ProductPage({
       </div>
     );
   }
-  const p = product as {
-    id: string; name: string; sku: string | null; barcode: string | null; unit: string;
-    selling_price: number; tax_rate: number; photo_url: string | null; track_stock: boolean;
-    low_stock_threshold: number; attributes: Record<string, unknown>; kind: string;
+  const p = {
+    id: product.id,
+    name: product.name,
+    unit: product.unit,
+    selling_price: product.selling_price,
+    photo_url: product.photo_url,
+    attributes: product.attributes,
+    kind: product.kind,
+    track_stock: true,
   };
   const desc = ((p.attributes as Record<string, unknown> | null)?.description ?? (p.attributes as Record<string, unknown> | null)?.details ?? "") as string;
   return (
@@ -89,8 +78,6 @@ export default async function ProductPage({
             <p className="num text-3xl font-bold text-navy-900 mb-2">
               KSh {Number(p.selling_price).toLocaleString("en-KE", { minimumFractionDigits: 2 })}
             </p>
-            {p.sku && <p className="text-xs text-slate-500 mb-1">SKU: {p.sku}</p>}
-            {p.barcode && <p className="text-xs text-slate-500 mb-4">Barcode: {p.barcode}</p>}
             <p className="text-sm text-slate-500 mb-2">Unit: {p.unit}</p>
             <p className="text-sm text-slate-500 mb-4">Type: {p.kind === "service" ? "Service" : "Product"}</p>
             <Link href={`/cart?shop=${slug}`} className="btn-primary w-full py-3 text-base">

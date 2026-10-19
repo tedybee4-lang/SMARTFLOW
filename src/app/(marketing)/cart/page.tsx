@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabaseBrowser } from "@/lib/supabase";
 
 type Product = { id: string; name: string; selling_price: number };
+type Shop = { name: string; slug: string; delivery_fee: number };
 
 export default function CartPage() {
   const slug = useMemo(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("shop") ?? "";
   }, []);
+  const [shop, setShop] = useState<Shop | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [phone, setPhone] = useState("");
@@ -21,17 +22,27 @@ export default function CartPage() {
   useEffect(() => {
     if (!slug) return;
     (async () => {
-      const sb = supabaseBrowser();
-      const { data: biz } = await sb.from("businesses").select("id").eq("slug", slug).maybeSingle();
-      const b = biz as { id: string } | null;
-      if (!b) { setMsg("Shop not found."); return; }
-      const { data } = await sb.from("products").select("id,name,selling_price").eq("business_id", b.id).eq("is_active", true).limit(60);
-      setProducts((data ?? []) as Product[]);
+      // `products` is protected by member-scoped RLS, so the guest catalogue is
+      // fetched from the public storefront endpoint instead of reading the
+      // table directly with the anonymous browser client.
+      const res = await fetch(`/api/storefront/public?slug=${encodeURIComponent(slug)}`);
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setMsg(j?.error ?? "Shop not found."); return; }
+      setShop(j.shop ?? null);
+      setProducts((j.products ?? []) as Product[]);
     })();
   }, [slug]);
 
-  const total = products.reduce((sum, p) => sum + (cart[p.id] ?? 0) * Number(p.selling_price), 0);
+  const subtotal = products.reduce((sum, p) => sum + (cart[p.id] ?? 0) * Number(p.selling_price), 0);
+  const deliveryFee = fulfillment === "delivery" ? Number(shop?.delivery_fee ?? 0) : 0;
+  const total = subtotal + deliveryFee;
   const itemCount = Object.values(cart).reduce((s, q) => s + q, 0);
+
+  // Stable per-cart idempotency key: a retried checkout (double tap, flaky
+  // network) returns the FIRST order instead of creating a duplicate.
+  const [clientRef] = useState(() =>
+    `web-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`.slice(0, 60),
+  );
 
   async function placeOrder() {
     setBusy(true);
@@ -41,12 +52,17 @@ export default function CartPage() {
       body: JSON.stringify({
         business_slug: slug, customer_name: name, customer_phone: phone, fulfillment,
         items: Object.entries(cart).filter(([, q]) => q > 0).map(([product_id, qty]) => ({ product_id, qty })),
+        client_ref: clientRef,
       }),
     });
     const j = await res.json();
     setBusy(false);
     if (!res.ok) { setMsg(j.error ?? "Order failed"); return; }
-    setMsg(`Order ${j.order_no} placed. Total KSh ${Number(j.total_due).toFixed(2)}. Pay on collection or via M-Pesa at the shop.`);
+    setMsg(
+      j.duplicate
+        ? `Order ${j.order_no} was already placed. Total KSh ${Number(j.total_due).toFixed(2)}.`
+        : `Order ${j.order_no} placed. Total KSh ${Number(j.total_due).toFixed(2)}. Pay on collection or via M-Pesa at the shop.`,
+    );
     setCart({});
   }
 
@@ -66,7 +82,7 @@ export default function CartPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Your cart</h1>
-          <p className="page-sub">Ordering from <span className="font-semibold text-navy-900">{slug}</span>{itemCount > 0 ? ` · ${itemCount} item${itemCount === 1 ? "" : "s"}` : ""}</p>
+          <p className="page-sub">Ordering from <span className="font-semibold text-navy-900">{shop?.name ?? slug}</span>{itemCount > 0 ? ` · ${itemCount} item${itemCount === 1 ? "" : "s"}` : ""}</p>
         </div>
         <Link href={`/s/${slug}`} className="btn-ghost text-sm">← Shop</Link>
       </div>
@@ -88,12 +104,22 @@ export default function CartPage() {
             </div>
           );
         })}
-        {products.length === 0 && <p className="p-6 text-sm text-slate-500">Loading products…</p>}
+        {products.length === 0 && <p className="p-6 text-sm text-slate-500">{shop ? "No products published yet." : "Loading products…"}</p>}
       </div>
 
       <div className="card p-6">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-slate-500">Total</p>
+          <p className="text-sm text-slate-500">Subtotal</p>
+          <p className="num text-lg font-semibold text-navy-900">KSh {subtotal.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p>
+        </div>
+        {fulfillment === "delivery" && deliveryFee > 0 && (
+          <div className="mt-1.5 flex items-center justify-between">
+            <p className="text-sm text-slate-500">Delivery</p>
+            <p className="num text-lg font-semibold text-navy-900">KSh {deliveryFee.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p>
+          </div>
+        )}
+        <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+          <p className="text-sm font-medium text-slate-700">Total</p>
           <p className="num text-2xl font-bold text-navy-900">KSh {total.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
