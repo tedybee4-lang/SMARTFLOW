@@ -55,6 +55,12 @@ export const CheckoutSchema = z.object({
   amount_paid: z.number().min(0).default(0),
   customer_id: z.string().uuid().optional(),
   notes: z.string().max(500).optional().default(""),
+  /** Client-generated idempotency key: retries with the same ref return the first order. */
+  client_ref: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9-]{8,64}$/, "client_ref must be 8–64 chars of letters, numbers or dashes")
+    .optional(),
 });
 
 export type CheckoutInput = z.infer<typeof CheckoutSchema>;
