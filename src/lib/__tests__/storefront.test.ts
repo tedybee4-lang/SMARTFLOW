@@ -25,6 +25,8 @@ vi.mock("@/lib/supabase-server", () => ({
   })),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({ rateLimited: () => null }));
+
 import { GET, POST } from "@/app/api/storefront/route";
 
 const BID = "11111111-2222-4333-8444-555555555555";

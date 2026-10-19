@@ -1,10 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { supabaseServer } from "@/lib/supabase-server";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const sb = await supabaseServer();
+  const { data: biz } = await sb.from("businesses").select("id,name").eq("slug", slug).maybeSingle();
+  const b = biz as { name: string } | null;
+  if (!b) {
+    return {
+      title: "Shop not found | SMARTFLOW",
+      description: "The SMARTFLOW shop you requested could not be found.",
+    };
+  }
+  const { data: shop } = await sb.from("storefronts").select("hero_text").eq("business_id", (biz as { id: string }).id).maybeSingle();
+  const hero = (shop as { hero_text: string | null } | null)?.hero_text;
+  return {
+    title: `${b.name} | SMARTFLOW online shop`,
+    description: hero ?? `Browse products from ${b.name} and order online.`,
+  };
+}
 
 export default async function StorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const sb = await supabaseServer();
-  const { data: biz } = await sb.from("businesses").select("id,name").eq("slug", slug).maybeSingle();
+  const { data: biz } = await sb.from("businesses").select("id,name,slug").eq("slug", slug).maybeSingle();
   if (!biz) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
@@ -17,9 +38,10 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
   const b = biz as { id: string; name: string };
   const [{ data: products }, { data: shop }] = await Promise.all([
     sb.from("products").select("id,name,selling_price,photo_url").eq("business_id", b.id).eq("is_active", true).limit(60),
-    sb.from("storefronts").select("is_published,hero_text").eq("business_id", b.id).maybeSingle(),
+    sb.from("storefronts").select("is_published,hero_text,whatsapp_number,delivery_fee").eq("business_id", b.id).maybeSingle(),
   ]);
-  if (!(shop as { is_published: boolean } | null)?.is_published) {
+  const s = shop as { is_published: boolean; hero_text: string | null; whatsapp_number: string | null; delivery_fee: number | null } | null;
+  if (!s?.is_published) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
         <h1 className="page-title">{b.name}</h1>
@@ -28,6 +50,7 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
       </div>
     );
   }
+  const wa = s.whatsapp_number;
   const items = ((products ?? []) as { id: string; name: string; selling_price: number; photo_url: string | null }[]);
   return (
     <div>
@@ -37,7 +60,12 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
         <div className="relative mx-auto w-full max-w-5xl px-4 py-14 sm:px-6">
           <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">Online shop</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">{b.name}</h1>
-          <p className="mt-2 text-slate-300">{(shop as { hero_text: string | null } | null)?.hero_text ?? "Karibu — order online."}</p>
+          <p className="mt-2 text-slate-300">{s.hero_text ?? "Karibu — order online."}</p>
+          {wa && (
+            <p className="mt-3 text-sm text-blue-200 flex items-center gap-2">
+              <span className="text-blue-400">📱</span> WhatsApp: {wa}
+            </p>
+          )}
           <Link href={`/cart?shop=${slug}`} className="btn-primary mt-6 px-6 py-3 text-base">
             View cart & order
           </Link>
@@ -50,10 +78,10 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
         </h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((p) => (
-            <div key={p.id} className="card overflow-hidden transition-shadow hover:shadow-md">
+            <Link key={p.id} href={`/s/${slug}/products/${p.id}`} className="block">
+              <div className="card overflow-hidden transition-shadow hover:shadow-md">
               {p.photo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.photo_url} alt={p.name} className="h-40 w-full object-cover" />
+                <Image src={p.photo_url} alt={p.name} width={480} height={240} className="h-40 w-full object-cover" />
               ) : (
                 <div className="flex h-40 w-full items-center justify-center bg-gradient-to-br from-navy-900 to-blue-900 text-4xl font-black text-white/20" aria-hidden="true">
                   {p.name.charAt(0).toUpperCase()}
@@ -65,7 +93,8 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
                   <span className="num">KSh {Number(p.selling_price).toLocaleString("en-KE", { minimumFractionDigits: 2 })}</span>
                 </p>
               </div>
-            </div>
+              </div>
+              </Link>
           ))}
         </div>
         {items.length === 0 && (
@@ -87,3 +116,4 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
     </div>
   );
 }
+
