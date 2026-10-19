@@ -27,6 +27,38 @@ export async function POST(req: Request) {
   if (!m) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const srv = supabaseServiceRole();
+
+  // --- Tenant scoping: every referenced row must belong to this business.
+  //        Without this, a caller could append stock to another tenant's
+  //        product, or tag the PO with a foreign branch/supplier.
+  const productIds = [...new Set(input.items.map((i) => i.product_id))];
+  const { data: products } = await srv
+    .from("products")
+    .select("id")
+    .eq("business_id", input.business_id)
+    .in("id", productIds);
+  if (((products ?? []) as { id: string }[]).length !== productIds.length) {
+    return NextResponse.json({ error: "Some products do not belong to this business" }, { status: 400 });
+  }
+  if (input.branch_id) {
+    const { data: branch } = await srv
+      .from("branches")
+      .select("id")
+      .eq("id", input.branch_id)
+      .eq("business_id", input.business_id)
+      .maybeSingle();
+    if (!branch) return NextResponse.json({ error: "Branch does not belong to this business" }, { status: 400 });
+  }
+  if (input.supplier_id) {
+    const { data: supplier } = await srv
+      .from("suppliers")
+      .select("id")
+      .eq("id", input.supplier_id)
+      .eq("business_id", input.business_id)
+      .maybeSingle();
+    if (!supplier) return NextResponse.json({ error: "Supplier does not belong to this business" }, { status: 400 });
+  }
+
   const total = input.items.reduce((s, i) => s + i.qty * i.unit_cost, 0);
   const { data: po, error: poErr } = await srv.from("purchase_orders").insert({
     business_id: input.business_id, supplier_id: input.supplier_id ?? null,
