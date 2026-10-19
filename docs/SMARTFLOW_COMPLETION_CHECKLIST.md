@@ -186,6 +186,20 @@
 
 **Live verification still blocked on env vars** (deployment-only): `TOPSPEED_API_KEY`, `PAYHERO_API_USERNAME/PASSWORD` (or `PAYHERO_BASIC_TOKEN`), `PAYHERO_PLATFORM_CHANNEL_ID`; and remote application of migrations `20261017000007`–`20261018000005`.
 
+
+## Stage 9 — POS HARDENING (COMPLETED, `e7562b1`, 2026-10-18 EAT)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 9.1 | `POST /api/sales/checkout` hardened: catalogue + price + stock validation runs before any order write (no orphan orders); server-price immutable item snapshots; ledger-based stock availability check; `client_ref` idempotency dedupe; order/line discounts restricted to owner/manager; PayHero orders saved `payment_pending` (server callback confirms — client redirect never marks paid) | ✅ Done | `src/app/api/sales/checkout/route.ts` |
+| 9.2 | `src/lib/stock.ts` — pure `onHandFromMovements()` helper + `fetchOnHand()` using `stock_on_hand` RPC (new migration) with ledger scan fallback | ✅ Done | `src/lib/stock.ts` |
+| 9.3 | Migration `20261018000006_stock_on_hand_rpc.sql` — additive, idempotent `stock_on_hand(p_business_id, p_product_ids)` RPC; grants to `authenticated` + `service_role` | ✅ Done | `supabase/migrations/20261018000006_stock_on_hand_rpc.sql` |
+| 9.4 | `CheckoutSchema` gains `client_ref` (strict charset `^[A-Za-z0-9-]{8,64}$` to prevent LIKE-injection in idempotency lookup) | ✅ Done | `src/lib/validation.ts` |
+| 9.5 | POS page — category filter, per-product stock badges (out-of-stock disabled), per-line + order discounts (owner/manager only), M-Pesa STK push via `/api/payments/stk`, cash/credit/payhero payment options, mobile-responsive grid | ✅ Done | `src/app/(app)/pos/page.tsx` |
+| 9.6 | Regression suite `pos.test.ts` — 16 tests: RBAC 403, cashier discount 403, discount>subtotal→400 (no 500), price tamper→409 (no order written), unknown product→400 (no orphan order), insufficient stock→409 (ledger-checked), `client_ref` dedupe returns first order, happy path with server-price snapshot + stock movement, PayHero `payment_pending`/no payment row, trial expired→402, service product skips stock | ✅ Done | `src/lib/__tests__/pos.test.ts` |
+| 9.7 | Full suite **140/140 passing** (+16 new); `tsc --noEmit` clean; lint 0 errors (14 pre-existing warnings); `next build` green (all routes incl. `/pos`) | ✅ Verified | `npm test && npm run typecheck && npm run lint && npm run build` |
+| 9.8 | Commit `e7562b1` pushed to `origin/main`; CI `completed success` | ✅ Verified | GitHub Actions; `git log` shows `HEAD = origin/main = e7562b1` |
+
 ---
 
 
@@ -243,4 +257,28 @@ vercel ls --prod --json
 - **Phase One (this session): COMPLETE.** Migration `0006` (additive `phone_e164`), error sanitisation in `POST /api/onboarding`, 4 onboarding regression tests, 23/23 test suite green, `tsc`/`eslint` clean, commit `be87362` pushed, Vercel deployment rebuilt from `be87362` and live.
 - **Phase Two (this session): partially audited.** Schema/RLS/auth/membership foundations verified present and consistent. Live Supabase migration `0006` still requires remote application; remaining Phase Two checks need Supabase credentials to complete.
 - **All remaining Phases 3–15 are unblocked** except for the two hard-lived credential sets (email/SMS/PayHero; `brian@smartflow.co.ke` admin session) and the pending remote application of migration `0006`.
+
+
+---
+
+## Final Evidence Checklist
+
+| # | Check | Evidence | Status |
+|---|-------|----------|--------|
+| 1 | Repository and CI baseline | Commit `e7562b1` on `origin/main`; GitHub Actions workflow `CI` `completed success` | PASS |
+| 2 | Supabase migrations | Local migrations `0001`–`0006` present; migration `20261018000006` (`stock_on_hand` RPC) added; remote application of `0007`–`0006` blocked (no Supabase CLI credentials) | BLOCKED |
+| 3 | Business creation | Root cause fixed in `8be30fd`/`dda8c90` (missing `phone_e164` column); `onboarding.test.ts` regression suite | PASS |
+| 4 | Seven-day trial | `src/lib/trial.ts` + `trial.test.ts` (17 tests); `src/app/api/subscriptions/access/route.ts` (6 tests); POS checkout returns 402 when trial expired | PASS |
+| 5 | Central paid SMS | `sms.test.ts` (16 tests): credit ledger, purchase idempotency, mocked-provider send debit, admin 403/503 | PASS |
+| 6 | PayHero payments | `payhero.test.ts` (4 tests): callback verification, idempotency, amount validation, dual-purpose (order/subscription/sms) | PASS |
+| 7 | POS | `pos.test.ts` (16 tests): checkout, stock, payment, discounts, permissions, PayHero pending state | PASS |
+| 8 | Storefront | `/s/[slug]` route present; slug validation in `validation.ts` (`RESERVED_SLUGS`, `isReservedSlug`); tenant isolation via RLS `is_member(business_id)` | NOT VERIFIED |
+| 9 | RBAC | `requireMembership`/`isPlatformAdmin` server-side checks; role-scoped routes; platform-admin console guarded | PASS |
+| 10 | Products and inventory | `products.test.ts` (9 tests): PUT/DELETE role scoping, audit, business scoping; stock-on-hand from `stock_movements` ledger | PASS |
+| 11 | Dashboards and analytics | `analytics.test.ts` (10 tests): 7-day chart, top products, deltas from real `order_items` | PASS |
+| 12 | Platform admin | `platform-admin` page + consoles guarded by `isPlatformAdmin`; `platform-settings` route whitelists non-secret keys only | PASS |
+| 13 | Security | RLS on all tenant tables; secrets env-only (`!.env.example` tracks template); webhook token verification in `payhero-callback`; idempotency keys on payments/SMS | PASS |
+| 14 | Quality gates | 140/140 tests passing; `tsc --noEmit` clean; eslint 0 errors; `next build` green | PASS |
+| 15 | Deployment | Vercel CLI not authenticated locally; production alias `smartflow-4sndves64` built from `be87362`; re-deploy pending on `e7562b1` | BLOCKED |
+| 16 | Documentation | `docs/SMARTFLOW_COMPLETION_CHECKLIST.md` updated (this document); `.env.example` placeholders only | PASS |
 
