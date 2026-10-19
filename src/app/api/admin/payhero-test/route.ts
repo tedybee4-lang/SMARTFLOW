@@ -5,7 +5,7 @@ import { rateLimited } from "@/lib/rate-limit";
 import { PayHeroTestSchema } from "@/lib/validation";
 import { normalizeKEPhone, toSTKFormat } from "@/lib/kenya";
 import { payheroConfigStatus, payheroInitiateSTKReal } from "@/lib/payhero";
-import { resolveSmsChannelId } from "@/lib/platform-settings";
+import { channelMatches, resolveChannelForPurpose } from "@/lib/payhero-channel";
 
 /**
  * GET /api/admin/payhero-test — account status (presence booleans only, never
@@ -55,14 +55,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid Kenyan phone number" }, { status: 400 });
   }
   const st = payheroConfigStatus();
-  const channelId = input.channel_id ?? (await resolveSmsChannelId());
+  // The channel is SERVER-resolved (platform channel). A client-supplied
+  // channel_id is only a comparison hint - it can never redirect the push.
+  const resolved = await resolveChannelForPurpose({ purpose: "platform", businessId: null });
+  const channelId = resolved.ok ? resolved.channelId : "";
   if (!st.configured || !channelId) {
     return NextResponse.json(
       {
-        error: "PayHero not configured — set PAYHERO_API_USERNAME + secret and PAYHERO_PLATFORM_CHANNEL_ID server-side.",
+        error: "PayHero not configured - set PAYHERO_API_USERNAME + secret and PAYHERO_PLATFORM_CHANNEL_ID server-side.",
         payhero: { configured: st.configured, hasPlatformChannel: !!channelId },
       },
       { status: 503 },
+    );
+  }
+  if (!channelMatches(channelId, input.channel_id)) {
+    return NextResponse.json(
+      { error: "Channel mismatch - the platform test channel is server-resolved." },
+      { status: 409 },
     );
   }
 
@@ -110,6 +119,7 @@ export async function POST(req: Request) {
     await srv.from("payment_attempts").insert({
       purpose: "platform",
       channel_id: channelId,
+      channel_source: "platform",
       amount: input.amount,
       phone: stkPhone,
       provider_ref: providerRef,

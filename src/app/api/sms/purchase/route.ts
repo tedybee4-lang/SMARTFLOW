@@ -4,7 +4,7 @@ import { supabaseServiceRole } from "@/lib/supabase-server";
 import { rateLimited } from "@/lib/rate-limit";
 import { SmsPurchaseSchema } from "@/lib/validation";
 import { normalizeKEPhone, toSTKFormat } from "@/lib/kenya";
-import { resolveSmsChannelId } from "@/lib/platform-settings";
+import { resolveChannelForPurpose } from "@/lib/payhero-channel";
 
 /**
  * POST /api/sms/purchase — buy an SMS credit package via central PayHero STK.
@@ -68,17 +68,19 @@ export async function POST(req: Request) {
   if (pErr || !purchase) return NextResponse.json({ error: "Could not create purchase" }, { status: 500 });
   const purchaseId = (purchase as { id: string }).id;
 
-  const channelId = await resolveSmsChannelId();
-  if (!channelId) {
+  const channel = await resolveChannelForPurpose({ purpose: "sms", businessId: input.business_id });
+  if (!channel.ok) {
     await srv.from("sms_purchases").update({ status: "failed" }).eq("id", purchaseId);
-    return NextResponse.json({ error: "SMS payments are not configured yet — contact support." }, { status: 503 });
+    return NextResponse.json({ error: "SMS payments are not configured yet - contact support." }, { status: channel.status });
   }
+  const channelId = channel.channelId;
 
   const attemptIdem = `sms-pay-${purchaseId}`;
   const { data: attempt, error: aErr } = await srv.from("payment_attempts").insert({
     business_id: input.business_id,
     purpose: "sms",
     channel_id: channelId,
+    channel_source: channel.source,
     amount: p.price_kes,
     phone: stkPhone,
     sms_purchase_id: purchaseId,

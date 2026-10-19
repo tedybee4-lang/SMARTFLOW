@@ -124,12 +124,14 @@ export default function POSPage() {
       if (!res.ok) { setMsg(""); setErr(j.error ?? "Checkout failed"); return; }
 
       if (method === "payhero") {
-        // Second step: initiate the STK push against the business's channel.
+        // Second step: initiate the STK push. The channel is resolved
+        // SERVER-side from the business' own settings - we deliberately do
+        // not send a channel_id, so the client can never pick the channel.
         const stk = await fetch("/api/payments/stk", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             business_id: businessId, purpose: "order", order_id: j.order_id,
-            amount: Number(j.total_due), phone: stkPhone, channel_id: payheroChannel,
+            amount: Number(j.total_due), phone: stkPhone,
           }),
         });
         const sj = await stk.json();

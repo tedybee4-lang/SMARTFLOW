@@ -69,6 +69,18 @@ describe("POST /api/payments/payhero-callback", () => {
       },
       error: null,
     });
+    // Second read: the ownership gate re-verifies that order "o" belongs to
+    // business "b" before any money is credited.
+    mockMaybeSingle.mockResolvedValueOnce({
+      data: {
+        id: "o",
+        business_id: "b",
+        total_due: 100,
+        amount_paid: 0,
+        payment_status: "unpaid",
+      },
+      error: null,
+    });
     const first = await callbackPOST(
       cbReq({ reference: "ref-1", amount: 100, status: "success", provider_ref: "pr-1" }, "tok")
     );

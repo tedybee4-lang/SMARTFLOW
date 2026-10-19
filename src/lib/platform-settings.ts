@@ -34,3 +34,15 @@ export async function resolveSmsChannelId(): Promise<string> {
   if (db) return db;
   return getPlatformSetting("payhero_sms_channel_id");
 }
+
+/**
+ * Resolve the central platform PayHero channel (business → SMARTFLOW payments:
+ * subscriptions, and platform test pushes). Env first, then platform_settings.
+ * Unlike resolveSmsChannelId this NEVER falls back to the SMS-only channel so a
+ * subscription can never be collected through an SMS destination.
+ */
+export async function resolvePlatformChannelId(): Promise<string> {
+  const env = (process.env.PAYHERO_PLATFORM_CHANNEL_ID ?? "").trim();
+  if (env) return env;
+  return getPlatformSetting("payhero_platform_channel_id");
+}
