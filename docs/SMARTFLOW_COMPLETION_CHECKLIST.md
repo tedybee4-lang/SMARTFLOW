@@ -1,8 +1,8 @@
 # SMARTFLOW Completion Checklist
 
 **Deliverable:** `docs/SMARTFLOW_COMPLETION_CHECKLIST.md`
-**As of:** 2026-10-18 EAT (Stage 2–3 session).
-**Repo:** `tedybee4-lang/SMARTFLOW` @ `main` (post-`dda8c90`).
+**As of:** 2026-10-19 EAT (Stage 4 session — payments hardening + POS receipts + remote verification).
+**Repo:** `tedybee4-lang/SMARTFLOW` @ `main` (post-`6815696`).
 **Production:** Vercel `smartflow` (active alias `https://smartflow-4sndves64-malariachrome-7756s-projects.vercel.app`).
 **Supabase project:** `wmszgwrqwlhrfolkwwsn`.
 
@@ -252,6 +252,18 @@ vercel ls --prod --json
 
 ---
 
+## 6.5 Stage 4 — PAYMENTS HARDENING, POS RECEIPTS, REMOTE VERIFICATION (2026-10-19)
+
+| # | Item | Evidence | Status |
+|---|------|----------|--------|
+| 6.5.1 | Migration `20261019000001_payment_attempt_ownership.sql` applied to the remote project (`wmszgwrqwlhrfolkwwsn`) | `supabase migration list` shows the row on both local and remote; `information_schema.columns` on remote confirms `payment_attempts.channel_source text NULL` | ✅ Verified live |
+| 6.5.2 | Remote constraints on `payment_attempts` | `payment_attempts_channel_source_check` CHECK (`business`/`platform`), `payment_attempts_idempotency_key_key` UNIQUE, purpose CHECK incl. `platform` — queried live via `supabase db query --linked` | ✅ Verified live |
+| 6.5.3 | Row Level Security on every public tenant table | Live query of `pg_class`/`pg_policies`: all 28 public tables have `relrowsecurity = true` and ≥1 policy (businesses 4, payments 3, stock_movements 3, …) | ✅ Verified live |
+| 6.5.4 | POS receipts (claimed in marketing copy, previously not implemented) | `src/app/(app)/pos/page.tsx` — receipt snapshot on confirmed cash/credit sales, accessible print dialog; `@media print` in `globals.css` prints only `#pos-receipt` at 80 mm thermal width; STK sales deliberately get no receipt until PayHero confirms | ✅ Done (`6815696`) |
+| 6.5.5 | Quality gates after receipt feature | 216/216 tests, `tsc --noEmit` clean, eslint clean, `next build` green | ✅ Verified |
+| 6.5.6 | Payment safety (idempotency keys, server-owned channels, reference ownership, revenue separation) | `payment-ownership.test.ts`, `pos.test.ts`, `payhero.test.ts` — all in the 216-test green suite | ✅ Done |
+| 6.5.7 | Storefront cart/checkout/payment confirmation/order tracking | `storefront-checkout.test.ts` + `storefront.test.ts` green; public catalogue served server-side (`8ddf25c`) | ✅ Done |
+
 ## 7. Summary
 
 - **Phase One (this session): COMPLETE.** Migration `0006` (additive `phone_e164`), error sanitisation in `POST /api/onboarding`, 4 onboarding regression tests, 23/23 test suite green, `tsc`/`eslint` clean, commit `be87362` pushed, Vercel deployment rebuilt from `be87362` and live.
@@ -266,7 +278,7 @@ vercel ls --prod --json
 | # | Check | Evidence | Status |
 |---|-------|----------|--------|
 | 1 | Repository and CI baseline | Commit `e7562b1` on `origin/main`; GitHub Actions workflow `CI` `completed success` | PASS |
-| 2 | Supabase migrations | Local migrations `0001`–`0006` present; migration `20261018000006` (`stock_on_hand` RPC) added; remote application of `0007`–`0006` blocked (no Supabase CLI credentials) | BLOCKED |
+| 2 | Supabase migrations | All migrations `0001`–`20261019000001` present on BOTH local and remote (`supabase migration list`, verified 2026-10-19); remote `payment_attempts` columns + constraints queried live | PASS |
 | 3 | Business creation | Root cause fixed in `8be30fd`/`dda8c90` (missing `phone_e164` column); `onboarding.test.ts` regression suite | PASS |
 | 4 | Seven-day trial | `src/lib/trial.ts` + `trial.test.ts` (17 tests); `src/app/api/subscriptions/access/route.ts` (6 tests); POS checkout returns 402 when trial expired | PASS |
 | 5 | Central paid SMS | `sms.test.ts` (16 tests): credit ledger, purchase idempotency, mocked-provider send debit, admin 403/503 | PASS |
@@ -278,7 +290,7 @@ vercel ls --prod --json
 | 11 | Dashboards and analytics | `analytics.test.ts` (10 tests): 7-day chart, top products, deltas from real `order_items` | PASS |
 | 12 | Platform admin | `platform-admin` page + consoles guarded by `isPlatformAdmin`; `platform-settings` route whitelists non-secret keys only | PASS |
 | 13 | Security | RLS on all tenant tables; secrets env-only (`!.env.example` tracks template); webhook token verification in `payhero-callback`; idempotency keys on payments/SMS | PASS |
-| 14 | Quality gates | 140/140 tests passing; `tsc --noEmit` clean; eslint 0 errors; `next build` green | PASS |
+| 14 | Quality gates | 216/216 tests passing (2026-10-19); `tsc --noEmit` clean; eslint 0 errors; `next build` green | PASS |
 | 15 | Deployment | Vercel CLI not authenticated locally; production alias `smartflow-4sndves64` built from `be87362`; re-deploy pending on `e7562b1` | BLOCKED |
 | 16 | Documentation | `docs/SMARTFLOW_COMPLETION_CHECKLIST.md` updated (this document); `.env.example` placeholders only | PASS |
 
