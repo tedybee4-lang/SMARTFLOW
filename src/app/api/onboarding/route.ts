@@ -32,7 +32,20 @@ export async function POST(req: Request) {
   if (authErr || !user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  const srv = supabaseServiceRole();
+  const srv = (() => {
+    try {
+      return supabaseServiceRole();
+    } catch {
+      console.error("[onboarding] service-role credentials not configured");
+      return null;
+    }
+  })();
+  if (!srv) {
+    return NextResponse.json(
+      { error: "Business setup is temporarily unavailable - please try again.", code: "service_unavailable" },
+      { status: 503 },
+    );
+  }
 
   // Idempotency: if this account already owns a business, return it instead
   // of creating another (prevents duplicate businesses / duplicate trials on
@@ -67,9 +80,10 @@ export async function POST(req: Request) {
     .single();
   if (bizErr || !biz) {
     if (bizErr?.code === "23505") {
-      return NextResponse.json({ error: "That storefront link is already taken - try another" }, { status: 409 });
+      return NextResponse.json({ error: "That storefront link is already taken - try another", code: "slug_taken" }, { status: 409 });
     }
-    return NextResponse.json({ error: "Could not create business - please try again." }, { status: 500 });
+    console.error("[onboarding] business insert failed", { code: bizErr?.code ?? null });
+    return NextResponse.json({ error: "Could not create business - please try again.", code: "business_create_failed" }, { status: 500 });
   }
 
   const { error: memErr } = await srv
@@ -80,8 +94,9 @@ export async function POST(req: Request) {
     )
     .select("business_id");
   if (memErr) {
+    console.error("[onboarding] owner membership write failed", { code: (memErr as { code?: string })?.code ?? null });
     await srv.from("businesses").delete().eq("id", biz.id);
-    return NextResponse.json({ error: "Could not complete setup - please try again." }, { status: 500 });
+    return NextResponse.json({ error: "Could not complete setup - please try again.", code: "membership_failed" }, { status: 500 });
   }
 
   const { data: membership } = await srv
