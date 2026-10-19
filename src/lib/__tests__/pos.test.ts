@@ -178,8 +178,36 @@ describe("POST /api/sales/checkout", () => {
     expect(orderRow.status).toBe("processing");
     const items = inserts.order_items as Record<string, unknown>[];
     expect(items[0].unit_price).toBe(100); // server price snapshot, not client echo
+    expect(items[0].line_total).toBe(200); // server price × qty, not client echo
     const moves = inserts.stock_movements as Record<string, unknown>[];
     expect(moves[0].quantity_delta).toBe(-2);
+  });
+
+  it("rejects a tampered client unit_price (409 price mismatch, no order written)", async () => {
+    setQueues({
+      products: [{ data: [catalogRow()] }], // server price 100
+      stock_movements: [{ data: [{ product_id: PID, quantity_delta: 10 }] }],
+    });
+    const res = await checkoutPOST(req({ business_id: BID, items: [item({ unit_price: 1 })], payment_method: "cash", amount_paid: 200 }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/Price mismatch/);
+    expect(inserts.orders).toBeUndefined();
+  });
+
+  it("absorbs sub-cent rounding drift (totals come from the server catalogue)", async () => {
+    setQueues({
+      orders: [{ data: { id: "ord-3c" } }],
+      products: [{ data: [catalogRow()] }], // server price 100
+      stock_movements: [{ data: [{ product_id: PID, quantity_delta: 10 }] }],
+    });
+    const res = await checkoutPOST(req({ business_id: BID, items: [item({ unit_price: 100.005 })], payment_method: "cash", amount_paid: 200 }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.totalDue).toBe(200); // 2 × 100 server, not client echo
+    const items = inserts.order_items as Record<string, unknown>[];
+    expect(items[0].unit_price).toBe(100);
+    expect(items[0].line_total).toBe(200);
   });
 
   it("payhero sale: payment_pending/unpaid, no payment row, stock reserved", async () => {

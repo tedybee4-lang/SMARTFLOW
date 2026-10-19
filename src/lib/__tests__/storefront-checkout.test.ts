@@ -39,6 +39,7 @@ function makeBuilder(table: string) {
 vi.mock("@/lib/supabase-server", () => ({
   supabaseServiceRole: vi.fn(() => ({
     from: (t: string) => makeBuilder(t),
+    rpc: vi.fn().mockRejectedValue(new Error("rpc not available")), // fallback path → ledger scan
   })),
 }));
 
@@ -51,7 +52,7 @@ const BID = "11111111-2222-4333-8444-555555555555";
 const PID = "22222222-3333-4444-8555-666666666666";
 
 function productRow(over: Record<string, unknown> = {}) {
-  return { id: PID, name: "Soda", selling_price: 100, tax_rate: 0, ...over };
+  return { id: PID, name: "Soda", selling_price: 100, tax_rate: 0, is_active: true, track_stock: true, ...over };
 }
 function req(body: unknown) {
   return new Request("http://t/api/storefront/checkout", {
@@ -111,6 +112,7 @@ describe("POST /api/storefront/checkout", () => {
       businesses: [{ data: { id: BID, slug: SLUG } }],
       storefronts: [{ data: { is_published: true, delivery_fee: 0 } }],
       products: [{ data: [productRow()] }],
+      stock_movements: [{ data: [{ product_id: PID, quantity_delta: 10 }] }],
       customers: [
         { data: null }, // select (not found)
         { data: { id: "c1" } }, // insert result
@@ -139,5 +141,45 @@ describe("POST /api/storefront/checkout", () => {
 
     const audit = inserts.audit_logs?.[0] as Record<string, unknown>;
     expect(audit.action).toBe("order.placed_online");
+  });
+
+  it("400 for an inactive product", async () => {
+    setQueues({
+      businesses: [{ data: { id: BID, slug: SLUG } }],
+      storefronts: [{ data: { is_published: true, delivery_fee: 0 } }],
+      products: [{ data: [productRow({ is_active: false })] }],
+    });
+    const res = await checkoutPOST(req({ business_slug: SLUG, customer_name: "Jane", customer_phone: "0712345678", items: [{ product_id: PID, qty: 1 }] }));
+    expect(res.status).toBe(400);
+    expect(inserts.orders).toBeUndefined();
+  });
+
+  it("409 when ledger stock is insufficient (no order written)", async () => {
+    setQueues({
+      businesses: [{ data: { id: BID, slug: SLUG } }],
+      storefronts: [{ data: { is_published: true, delivery_fee: 0 } }],
+      products: [{ data: [productRow()] }],
+      stock_movements: [{ data: [{ product_id: PID, quantity_delta: 1 }] }],
+    });
+    const res = await checkoutPOST(req({ business_slug: SLUG, customer_name: "Jane", customer_phone: "0712345678", items: [{ product_id: PID, qty: 2 }] }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/Insufficient stock/);
+    expect(inserts.orders).toBeUndefined();
+  });
+
+  it("duplicate client_ref returns the first order without a new insert", async () => {
+    setQueues({
+      businesses: [{ data: { id: BID, slug: SLUG } }],
+      storefronts: [{ data: { is_published: true, delivery_fee: 0 } }],
+      products: [{ data: [productRow()] }],
+      orders: [{ data: { order_no: "WEB-DUP1", total_due: 200 } }],
+    });
+    const res = await checkoutPOST(req({ business_slug: SLUG, customer_name: "Jane", customer_phone: "0712345678", items: [{ product_id: PID, qty: 2 }], client_ref: "web-dup-1234" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.duplicate).toBe(true);
+    expect(body.order_no).toBe("WEB-DUP1");
+    expect(inserts.orders).toBeUndefined();
   });
 });

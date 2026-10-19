@@ -39,16 +39,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Only owners/managers can apply discounts" }, { status: 403 });
   }
 
-  // --- Totals: math errors are client input problems, not 500s. ---
-  let totals: ReturnType<typeof orderTotals>;
-  try {
-    totals = orderTotals(
-      input.items.map((i) => ({ qty: i.qty, unitPrice: i.unit_price, discount: i.discount })),
-      { orderDiscount: input.order_discount, taxRate: input.tax_rate },
-    );
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Invalid totals" }, { status: 400 });
-  }
+  // --- Totals are derived from SERVER catalogue prices (computed after the
+  //        catalogue + stock gates below). Client unit_price is never trusted
+  //        for money math — see the orderTotals call after validation.
+  let totals: ReturnType<typeof orderTotals> | null = null;
 
   const srv = supabaseServiceRole();
 
@@ -133,6 +127,22 @@ export async function POST(req: Request) {
     }
   }
 
+  // --- Totals from SERVER prices: money math is recomputed against the
+  //        verified catalogue so a tampered client unit_price can never move
+  //        the charged total. Math errors → 400.
+  try {
+    totals = orderTotals(
+      input.items.map((i) => ({
+        qty: i.qty,
+        unitPrice: Number(catalog.get(i.product_id)!.selling_price),
+        discount: i.discount,
+      })),
+      { orderDiscount: input.order_discount, taxRate: input.tax_rate },
+    );
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Invalid totals" }, { status: 400 });
+  }
+
   const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}`;
   const idem = `sale-${input.business_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const isPayhero = input.payment_method === "payhero";
@@ -169,7 +179,7 @@ export async function POST(req: Request) {
       qty: i.qty,
       unit_price: Number(catalog.get(i.product_id)!.selling_price), // snapshot = server price, not client echo
       discount: i.discount,
-      line_total: Math.round((i.qty * i.unit_price - i.discount) * 100) / 100,
+      line_total: Math.round((i.qty * Number(catalog.get(i.product_id)!.selling_price) - i.discount) * 100) / 100,
     })),
   );
 

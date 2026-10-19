@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabaseServiceRole } from "@/lib/supabase-server";
 import { normalizeKEPhone } from "@/lib/kenya";
 import { rateLimited } from "@/lib/rate-limit";
+import { fetchOnHand } from "@/lib/stock";
 
 const Schema = z.object({
   business_slug: z.string().min(1),
@@ -11,6 +12,12 @@ const Schema = z.object({
   fulfillment: z.enum(["pickup", "delivery"]).default("pickup"),
   items: z.array(z.object({ product_id: z.string().uuid(), qty: z.number().positive().max(1000) })).min(1).max(50),
   notes: z.string().max(500).optional().default(""),
+  /** Client-generated idempotency key: retries with the same ref return the first order. */
+  client_ref: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9-]{8,64}$/, "client_ref must be 8–64 chars of letters, numbers or dashes")
+    .optional(),
 });
 
 /** Public guest checkout — no login required. Creates customer + placed order. Payment confirmed in shop. */
@@ -31,10 +38,52 @@ export async function POST(req: Request) {
   const s = shop as { is_published: boolean; delivery_fee: number } | null;
   if (!s?.is_published) return NextResponse.json({ error: "Shop is not published" }, { status: 403 });
 
-  // Load products (price from server, never trust client prices)
-  const { data: products } = await srv.from("products").select("id,name,selling_price,tax_rate").eq("business_id", b.id).in("id", input.items.map((i) => i.product_id));
-  const byId = new Map(((products ?? []) as { id: string; name: string; selling_price: number; tax_rate: number }[]).map((p) => [p.id, p]));
+  // Load products (price from server, never trust client prices).
+  // is_active + track_stock drive the same availability gate the POS uses.
+  const { data: products } = await srv.from("products").select("id,name,selling_price,tax_rate,is_active,track_stock").eq("business_id", b.id).in("id", input.items.map((i) => i.product_id));
+  const byId = new Map(((products ?? []) as { id: string; name: string; selling_price: number; tax_rate: number; is_active: boolean; track_stock: boolean }[]).map((p) => [p.id, p]));
   if (byId.size !== input.items.length) return NextResponse.json({ error: "Some items are unavailable" }, { status: 400 });
+  for (const i of input.items) {
+    // Explicit false only — rows predating the flag (or mocks without it)
+    // are treated as active rather than blocking the sale.
+    if (byId.get(i.product_id)!.is_active === false) {
+      return NextResponse.json({ error: "Some items are unavailable" }, { status: 400 });
+    }
+  }
+
+  // Idempotency: a retried guest checkout with the same client_ref returns
+  // the first order instead of creating a duplicate.
+  if (input.client_ref) {
+    const { data: existingOrder } = await srv
+      .from("orders")
+      .select("order_no,total_due")
+      .eq("business_id", b.id)
+      .like("notes", `[client:${input.client_ref}]%`)
+      .maybeSingle();
+    const dup = existingOrder as { order_no: string; total_due: number } | null;
+    if (dup) {
+      return NextResponse.json({ order_no: dup.order_no, total_due: Number(dup.total_due), duplicate: true });
+    }
+  }
+
+  // Stock availability from the ledger BEFORE any row is written — same
+  // all-or-nothing gate as POS (untracked products/services skip the check).
+  const trackedIds = input.items
+    .filter((i) => byId.get(i.product_id)!.track_stock !== false)
+    .map((i) => i.product_id);
+  if (trackedIds.length > 0) {
+    const onHand = await fetchOnHand(srv as never, b.id, trackedIds);
+    for (const i of input.items) {
+      if (byId.get(i.product_id)!.track_stock === false) continue;
+      const available = onHand.get(i.product_id) ?? 0;
+      if (available < i.qty) {
+        return NextResponse.json(
+          { error: `Insufficient stock for “${byId.get(i.product_id)!.name}” — ${available} available, ${i.qty} requested` },
+          { status: 409 },
+        );
+      }
+    }
+  }
 
   let subtotal = 0, taxTotal = 0;
   const lines = input.items.map((i) => {
@@ -64,7 +113,8 @@ export async function POST(req: Request) {
     business_id: b.id, customer_id: customerId, order_no: orderNo,
     status: "placed", payment_status: "unpaid",
     subtotal, tax_total: taxTotal, total_due: totalDue, amount_paid: 0,
-    fulfillment: input.fulfillment, delivery_fee: deliveryFee, notes: input.notes,
+    fulfillment: input.fulfillment, delivery_fee: deliveryFee,
+    notes: input.client_ref ? `[client:${input.client_ref}] ${input.notes ?? ""}`.trim() : input.notes,
   }).select("id").single();
   if (error || !order) return NextResponse.json({ error: "Could not place order" }, { status: 500 });
 
